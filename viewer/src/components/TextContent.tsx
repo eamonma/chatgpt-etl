@@ -1,4 +1,7 @@
-import { useMemo } from "react";
+import React, { useMemo } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import type { BundledLanguage } from "shiki";
 import type { MessageContent } from "../lib/thread";
 import { processCitationsSegmented, type Footnote } from "../lib/citations";
 import { MessageResponse } from "./ai-elements/message";
@@ -13,6 +16,13 @@ import {
   HoverCardContent,
 } from "@/components/ui/hover-card";
 import { Badge } from "@/components/ui/badge";
+import {
+  CodeBlock,
+  CodeBlockHeader,
+  CodeBlockTitle,
+  CodeBlockActions,
+  CodeBlockCopyButton,
+} from "./ai-elements/code-block";
 import { FileCard } from "./FileCard";
 
 function getHostname(url: string): string {
@@ -27,6 +37,13 @@ function extractFileIdFromPointer(pointer: string): string | null {
   const match = pointer.match(/sediment:\/\/(file_[a-fA-F0-9]+)/);
   return match ? match[1] : null;
 }
+
+/** Unique placeholders using private-use Unicode that markdown won't touch */
+const CITE_PLACEHOLDER = "\uf8f0CITE_";
+const CITE_PLACEHOLDER_END = "\uf8f1";
+const CITE_PLACEHOLDER_RE = /\uf8f0CITE_([\d,]+)\uf8f1/g;
+const FILE_PLACEHOLDER = "\uf8f0FILE_";
+const FILE_PLACEHOLDER_RE = /\uf8f0FILE_([^\uf8f1]+)\uf8f1/g;
 
 function CitationBadge({
   footnoteIndices,
@@ -97,6 +114,66 @@ function CitationBadge({
   );
 }
 
+/**
+ * Expand children that may contain citation/file placeholders into
+ * React elements. Splits a string on placeholder patterns and returns
+ * a mixed array of strings and React components.
+ */
+function expandPlaceholders(
+  children: React.ReactNode,
+  footnotes: Footnote[],
+  conversationId?: string,
+): React.ReactNode {
+  if (typeof children !== "string") return children;
+
+  const combined = new RegExp(
+    `\\uf8f0CITE_([\\d,]+)\\uf8f1|\\uf8f0FILE_([^\\uf8f1]+)\\uf8f1`,
+    "g",
+  );
+
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = combined.exec(children)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(children.slice(lastIndex, match.index));
+    }
+
+    if (match[1] != null) {
+      // Citation match
+      const indices = match[1].split(",").map(Number);
+      parts.push(
+        <CitationBadge
+          key={`cite-${match.index}`}
+          footnoteIndices={indices}
+          footnotes={footnotes}
+          conversationId={conversationId}
+        />,
+      );
+    } else if (match[2] != null) {
+      // File match
+      if (conversationId) {
+        parts.push(
+          <FileCard
+            key={`file-${match.index}`}
+            fileId={match[2]}
+            conversationId={conversationId}
+          />,
+        );
+      }
+    }
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex === 0) return children;
+  if (lastIndex < children.length) {
+    parts.push(children.slice(lastIndex));
+  }
+  return parts;
+}
+
 export function TextContent({
   content,
   contentReferences,
@@ -118,35 +195,106 @@ export function TextContent({
   const hasAnyCitations = segments.some((s) => s.type === "citation");
   const hasAnyFiles = segments.some((s) => s.type === "file");
 
-  // No citations or files — render everything with MessageResponse (full markdown)
+  // No citations or files — render with MessageResponse (full Streamdown)
   if (!hasAnyCitations && !hasAnyFiles) {
     const text = segments.map((s) => s.type === "text" ? s.content : "").join("");
     if (!text.trim()) return null;
     return <MessageResponse>{text}</MessageResponse>;
   }
 
-  // Has citations or files — render segments sequentially.
+  // Build a single markdown string with placeholders for citations/files
+  const markdownWithPlaceholders = segments.map((seg) => {
+    if (seg.type === "text") return seg.content;
+    if (seg.type === "citation") {
+      return `${CITE_PLACEHOLDER}${seg.footnoteIndices.join(",")}${CITE_PLACEHOLDER_END}`;
+    }
+    if (seg.type === "file") {
+      return `${FILE_PLACEHOLDER}${seg.fileId}${CITE_PLACEHOLDER_END}`;
+    }
+    return "";
+  }).join("");
+
   return (
     <div>
-      {segments.map((seg, i) => {
-        if (seg.type === "text") {
-          if (!seg.content.trim()) return null;
-          return <MessageResponse key={i}>{seg.content}</MessageResponse>;
-        }
-        if (seg.type === "file") {
-          return conversationId ? (
-            <FileCard key={i} fileId={seg.fileId} conversationId={conversationId} />
-          ) : null;
-        }
-        return (
-          <CitationBadge
-            key={i}
-            footnoteIndices={seg.footnoteIndices}
-            footnotes={footnotes}
-            conversationId={conversationId}
-          />
-        );
-      })}
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          pre: ({ children }) => <>{children}</>,
+          code: ({ className, children, ...props }) => {
+            const isBlock = className?.startsWith("language-");
+            if (isBlock) {
+              const lang = className?.replace("language-", "") ?? "text";
+              const codeText = String(children).replace(/\n$/, "");
+              return (
+                <CodeBlock code={codeText} language={lang as BundledLanguage} className="my-2">
+                  <CodeBlockHeader>
+                    <CodeBlockTitle>{lang}</CodeBlockTitle>
+                    <CodeBlockActions>
+                      <CodeBlockCopyButton />
+                    </CodeBlockActions>
+                  </CodeBlockHeader>
+                </CodeBlock>
+              );
+            }
+            return (
+              <code className="bg-secondary px-1.5 py-0.5 rounded text-sm" {...props}>
+                {children}
+              </code>
+            );
+          },
+          // Intercept text nodes to expand citation/file placeholders
+          p: ({ children, ...props }) => (
+            <p {...props}>
+              {Array.isArray(children)
+                ? children.map((child, i) => (
+                    <React.Fragment key={i}>
+                      {expandPlaceholders(child, footnotes, conversationId)}
+                    </React.Fragment>
+                  ))
+                : expandPlaceholders(children, footnotes, conversationId)
+              }
+            </p>
+          ),
+          li: ({ children, ...props }) => (
+            <li {...props}>
+              {Array.isArray(children)
+                ? children.map((child, i) => (
+                    <React.Fragment key={i}>
+                      {expandPlaceholders(child, footnotes, conversationId)}
+                    </React.Fragment>
+                  ))
+                : expandPlaceholders(children, footnotes, conversationId)
+              }
+            </li>
+          ),
+          strong: ({ children, ...props }) => (
+            <strong {...props}>
+              {Array.isArray(children)
+                ? children.map((child, i) => (
+                    <React.Fragment key={i}>
+                      {expandPlaceholders(child, footnotes, conversationId)}
+                    </React.Fragment>
+                  ))
+                : expandPlaceholders(children, footnotes, conversationId)
+              }
+            </strong>
+          ),
+          em: ({ children, ...props }) => (
+            <em {...props}>
+              {Array.isArray(children)
+                ? children.map((child, i) => (
+                    <React.Fragment key={i}>
+                      {expandPlaceholders(child, footnotes, conversationId)}
+                    </React.Fragment>
+                  ))
+                : expandPlaceholders(children, footnotes, conversationId)
+              }
+            </em>
+          ),
+        }}
+      >
+        {markdownWithPlaceholders}
+      </ReactMarkdown>
 
       {footnotes.length > 0 && (
         <Sources className="mt-3">

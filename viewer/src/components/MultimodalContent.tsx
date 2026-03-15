@@ -5,8 +5,13 @@ import type { MessageContent } from "../lib/thread";
 import { processCitations } from "../lib/citations";
 
 function extractFileId(assetPointer: string): string | null {
-  const match = assetPointer.match(/sediment:\/\/(file_[a-fA-F0-9]+)/);
-  return match ? match[1] : null;
+  // sediment://file_00000000abc... or sediment://hash#file_abc#p_0.jpg
+  const sedimentMatch = assetPointer.match(/sediment:\/\/(?:[^#]*#)?(file_[a-fA-F0-9]+)/);
+  if (sedimentMatch) return sedimentMatch[1];
+  // file-service://file-AbCdEf123
+  const serviceMatch = assetPointer.match(/file-service:\/\/(file-[a-zA-Z0-9]+)/);
+  if (serviceMatch) return serviceMatch[1];
+  return null;
 }
 
 export function MultimodalContent({

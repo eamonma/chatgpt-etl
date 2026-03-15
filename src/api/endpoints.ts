@@ -59,6 +59,7 @@ export function extractAssetReferences(
 ): AssetReference[] {
   const refs: AssetReference[] = [];
   const sedimentPattern = /^sediment:\/\/(file_.+)$/;
+  const fileServicePattern = /^file-service:\/\/(file-[a-zA-Z0-9]+)$/;
   const fileRefPattern = /\{\{file:(file-[a-zA-Z0-9]+)\}\}/g;
   const seenFileIds = new Set<string>();
 
@@ -69,9 +70,9 @@ export function extractAssetReferences(
     if (!parts) continue;
 
     for (const part of parts) {
-      // Sediment asset pointers (images, PDFs, etc.)
+      // Asset pointers (sediment:// or file-service://)
       if (typeof part !== "string" && part.asset_pointer) {
-        const match = sedimentPattern.exec(part.asset_pointer);
+        const match = sedimentPattern.exec(part.asset_pointer) ?? fileServicePattern.exec(part.asset_pointer);
         if (match && !seenFileIds.has(match[1])) {
           seenFileIds.add(match[1]);
           refs.push({
