@@ -204,8 +204,7 @@ function ProcessBlock({
               const toolName = msg.author.name;
               const text = (msg.content.parts ?? [])
                 .filter((p): p is string => typeof p === "string")
-                .join("\n")
-                .slice(0, 500);
+                .join("\n");
               if (!text.trim()) return null;
               return (
                 <div key={tn.node.id}>
@@ -214,8 +213,8 @@ function ProcessBlock({
                       {toolName}
                     </div>
                   )}
-                  <div className="text-xs bg-gray-100 dark:bg-gray-800 rounded p-2 whitespace-pre-wrap overflow-x-auto max-h-40 overflow-y-auto">
-                    {text}{text.length >= 500 ? "..." : ""}
+                  <div className="text-xs bg-gray-100 dark:bg-gray-800 rounded p-2 whitespace-pre-wrap overflow-x-auto max-h-60 overflow-y-auto">
+                    {text}
                   </div>
                 </div>
               );
@@ -273,23 +272,30 @@ function ToolCallDisplay({ raw, language: _language }: { raw: string; language: 
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           Searched {queries.length} quer{queries.length === 1 ? "y" : "ies"}
-          {parsed.response_length && (
-            <span className="text-gray-400 dark:text-gray-500 ml-1">({String(parsed.response_length)})</span>
-          )}
+          {Object.entries(parsed).filter(([k]) => k !== "search_query").map(([k, v]) => (
+            <span key={k} className="text-gray-400 dark:text-gray-500 ml-2">{k}: {String(v)}</span>
+          ))}
         </div>
         <div className="divide-y divide-gray-100 dark:divide-gray-800">
-          {queries.map((sq, i) => (
-            <div key={i} className="px-3 py-2 text-xs flex items-baseline gap-2">
-              <span className="font-mono text-gray-700 dark:text-gray-300 break-all">{sq.q}</span>
-              {sq.recency != null && (
-                <span className="shrink-0 text-gray-400 dark:text-gray-500">
-                  {sq.recency >= 365 ? `${Math.round(sq.recency / 365)}y` :
-                   sq.recency >= 30 ? `${Math.round(sq.recency / 30)}mo` :
-                   `${sq.recency}d`}
-                </span>
-              )}
-            </div>
-          ))}
+          {queries.map((sq, i) => {
+            const extra = Object.entries(sq).filter(([k]) => k !== "q");
+            return (
+              <div key={i} className="px-3 py-2 text-xs">
+                <div className="font-mono text-gray-700 dark:text-gray-300 break-all">{sq.q}</div>
+                {extra.length > 0 && (
+                  <div className="flex gap-3 mt-0.5 text-gray-400 dark:text-gray-500">
+                    {extra.map(([k, v]) => (
+                      <span key={k}>
+                        {k}: {typeof v === "number" && k === "recency"
+                          ? (v >= 365 ? `${Math.round(v / 365)}y` : v >= 30 ? `${Math.round(v / 30)}mo` : `${v}d`)
+                          : String(v)}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     );
