@@ -72,5 +72,8 @@ export interface ExportOptions {
   includeProjects: boolean;
   includeAssets: boolean;
   maxConsecutiveErrors: number;
-  onProgress?: (current: number, total: number) => void;
+  limit?: number;
+  dryRun?: boolean;
+  delayMs?: number;
+  onProgress?: (current: number, total: number, title: string) => void;
 }

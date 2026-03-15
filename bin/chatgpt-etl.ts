@@ -13,6 +13,9 @@ interface CliArgs {
   includeArchived: boolean;
   includeProjects: boolean;
   includeAssets: boolean;
+  limit?: number;
+  dryRun: boolean;
+  delayMs: number;
 }
 
 function parseArgs(argv: string[]): CliArgs {
@@ -23,6 +26,9 @@ function parseArgs(argv: string[]): CliArgs {
   let includeArchived = true;
   let includeProjects = true;
   let includeAssets = true;
+  let limit: number | undefined;
+  let dryRun = false;
+  let delayMs = 500;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -52,6 +58,22 @@ function parseArgs(argv: string[]): CliArgs {
       includeAssets = false;
     } else if (arg === "--include-assets") {
       includeAssets = true;
+    } else if (arg === "--limit" || arg === "-l") {
+      const raw = args[++i];
+      limit = parseInt(raw, 10);
+      if (isNaN(limit) || limit < 1) {
+        console.error(`Error: --limit must be a positive integer (got: ${raw})`);
+        process.exit(1);
+      }
+    } else if (arg === "--dry-run") {
+      dryRun = true;
+    } else if (arg === "--delay-ms") {
+      const raw = args[++i];
+      delayMs = parseInt(raw, 10);
+      if (isNaN(delayMs) || delayMs < 0) {
+        console.error(`Error: --delay-ms must be a non-negative integer (got: ${raw})`);
+        process.exit(1);
+      }
     } else if (arg === "--help" || arg === "-h") {
       printHelp();
       process.exit(0);
@@ -68,7 +90,7 @@ function parseArgs(argv: string[]): CliArgs {
     process.exit(1);
   }
 
-  return { outputDir, port, includeArchived, includeProjects, includeAssets };
+  return { outputDir, port, includeArchived, includeProjects, includeAssets, limit, dryRun, delayMs };
 }
 
 function printHelp(): void {
@@ -84,6 +106,9 @@ Options:
   --no-include-projects     Exclude project conversations
   --include-assets          Download assets/files (default: true)
   --no-include-assets       Skip asset downloads
+  --limit, -l <number>      Only export first N conversations (for testing)
+  --dry-run                 List conversations and save manifest, but don't download
+  --delay-ms <number>       Milliseconds between API requests (default: 500)
   --help, -h                Show this help message
 `);
 }
@@ -195,6 +220,9 @@ async function main(): Promise<void> {
   console.log(`Include archived:  ${args.includeArchived}`);
   console.log(`Include projects:  ${args.includeProjects}`);
   console.log(`Include assets:    ${args.includeAssets}`);
+  console.log(`Request delay:     ${args.delayMs}ms`);
+  if (args.limit) console.log(`Limit:             ${args.limit} conversations`);
+  if (args.dryRun) console.log(`Mode:              DRY RUN (no downloads)`);
   console.log("=".repeat(60));
   console.log("");
 
@@ -208,8 +236,11 @@ async function main(): Promise<void> {
     includeProjects: args.includeProjects,
     includeAssets: args.includeAssets,
     maxConsecutiveErrors: 5,
-    onProgress: (current: number, total: number) => {
-      console.log(`Exporting conversation ${current}/${total}`);
+    limit: args.limit,
+    dryRun: args.dryRun,
+    delayMs: args.delayMs,
+    onProgress: (current: number, total: number, title: string) => {
+      console.log(`[${current}/${total}] ${title}`);
     },
   });
 

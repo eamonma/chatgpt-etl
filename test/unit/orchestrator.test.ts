@@ -387,6 +387,190 @@ describe("orchestrator", () => {
     expect(manifest.conversations["conv-3"].status).toBe("error");
   });
 
+  it("limit restricts number of conversations exported", async () => {
+    const convos = [
+      { id: "conv-1", title: "First" },
+      { id: "conv-2", title: "Second" },
+      { id: "conv-3", title: "Third" },
+    ];
+
+    let listCallCount = 0;
+    const client = new MockClient([
+      {
+        pattern: /backend-api\/conversations\?offset=\d+&limit=100&order=updated$/,
+        handler: {
+          response: () => {
+            listCallCount++;
+            if (listCallCount === 1) {
+              return { status: 200, headers: {}, body: makeListResponse(convos) };
+            }
+            return { status: 200, headers: {}, body: emptyListResponse };
+          },
+        },
+      },
+      {
+        pattern: /backend-api\/conversation\/conv-1$/,
+        handler: { response: { status: 200, headers: {}, body: makeDetail("conv-1", "First") } },
+      },
+      {
+        pattern: /backend-api\/conversation\/conv-2$/,
+        handler: { response: { status: 200, headers: {}, body: makeDetail("conv-2", "Second") } },
+      },
+      {
+        pattern: /backend-api\/conversation\/conv-3$/,
+        handler: { response: { status: 200, headers: {}, body: makeDetail("conv-3", "Third") } },
+      },
+    ]);
+
+    const manifest = await runExport(
+      client,
+      "test-token",
+      defaultOptions(tmpDir, { limit: 2 }),
+    );
+
+    // Only 2 conversations should have been fetched
+    expect(manifest.conversations["conv-1"].status).toBe("complete");
+    expect(manifest.conversations["conv-2"].status).toBe("complete");
+    // conv-3 should still be pending (in manifest from listing, but not fetched)
+    expect(manifest.conversations["conv-3"].status).toBe("pending");
+
+    // Verify only 2 detail fetches happened
+    expect(client.getCallCount(/backend-api\/conversation\//)).toBe(2);
+  });
+
+  it("dry run lists conversations and saves manifest without fetching", async () => {
+    const convos = [
+      { id: "conv-1", title: "First" },
+      { id: "conv-2", title: "Second" },
+    ];
+
+    let listCallCount = 0;
+    const client = new MockClient([
+      {
+        pattern: /backend-api\/conversations\?offset=\d+&limit=100&order=updated$/,
+        handler: {
+          response: () => {
+            listCallCount++;
+            if (listCallCount === 1) {
+              return { status: 200, headers: {}, body: makeListResponse(convos) };
+            }
+            return { status: 200, headers: {}, body: emptyListResponse };
+          },
+        },
+      },
+    ]);
+
+    const manifest = await runExport(
+      client,
+      "test-token",
+      defaultOptions(tmpDir, { dryRun: true }),
+    );
+
+    // Conversations should be in manifest as pending
+    expect(manifest.conversations["conv-1"].status).toBe("pending");
+    expect(manifest.conversations["conv-2"].status).toBe("pending");
+
+    // No detail fetches should have happened
+    expect(client.getCallCount(/backend-api\/conversation\//)).toBe(0);
+
+    // Manifest should be saved to disk
+    const manifestOnDisk = JSON.parse(await readFile(join(tmpDir, "manifest.json"), "utf8"));
+    expect(manifestOnDisk.conversations["conv-1"].status).toBe("pending");
+    expect(manifestOnDisk.conversations["conv-2"].status).toBe("pending");
+  });
+
+  it("delayMs paces requests between conversations", async () => {
+    const convos = [
+      { id: "conv-1", title: "First" },
+      { id: "conv-2", title: "Second" },
+    ];
+
+    let listCallCount = 0;
+    const fetchTimestamps: number[] = [];
+    const client = new MockClient([
+      {
+        pattern: /backend-api\/conversations\?offset=\d+&limit=100&order=updated$/,
+        handler: {
+          response: () => {
+            listCallCount++;
+            if (listCallCount === 1) {
+              return { status: 200, headers: {}, body: makeListResponse(convos) };
+            }
+            return { status: 200, headers: {}, body: emptyListResponse };
+          },
+        },
+      },
+      {
+        pattern: /backend-api\/conversation\/conv-1$/,
+        handler: {
+          response: () => {
+            fetchTimestamps.push(Date.now());
+            return { status: 200, headers: {}, body: makeDetail("conv-1", "First") };
+          },
+        },
+      },
+      {
+        pattern: /backend-api\/conversation\/conv-2$/,
+        handler: {
+          response: () => {
+            fetchTimestamps.push(Date.now());
+            return { status: 200, headers: {}, body: makeDetail("conv-2", "Second") };
+          },
+        },
+      },
+    ]);
+
+    await runExport(
+      client,
+      "test-token",
+      defaultOptions(tmpDir, { delayMs: 100 }),
+    );
+
+    // Both conversations should have been fetched
+    expect(fetchTimestamps).toHaveLength(2);
+
+    // The gap between fetches should be at least ~100ms
+    const gap = fetchTimestamps[1] - fetchTimestamps[0];
+    expect(gap).toBeGreaterThanOrEqual(80); // allow some timing slack
+  });
+
+  it("progress callback receives conversation title", async () => {
+    let listCallCount = 0;
+    const client = new MockClient([
+      {
+        pattern: /backend-api\/conversations\?offset=\d+&limit=100&order=updated$/,
+        handler: {
+          response: () => {
+            listCallCount++;
+            if (listCallCount === 1) {
+              return {
+                status: 200,
+                headers: {},
+                body: makeListResponse([{ id: "conv-1", title: "My Chat" }]),
+              };
+            }
+            return { status: 200, headers: {}, body: emptyListResponse };
+          },
+        },
+      },
+      {
+        pattern: /backend-api\/conversation\/conv-1$/,
+        handler: { response: { status: 200, headers: {}, body: makeDetail("conv-1", "My Chat") } },
+      },
+    ]);
+
+    const progressCalls: Array<[number, number, string]> = [];
+    await runExport(
+      client,
+      "test-token",
+      defaultOptions(tmpDir, {
+        onProgress: (current, total, title) => progressCalls.push([current, total, title]),
+      }),
+    );
+
+    expect(progressCalls).toEqual([[1, 1, "My Chat"]]);
+  });
+
   it("downloads assets when includeAssets is true", async () => {
     const detailWithAsset = JSON.stringify({
       id: "conv-1",
