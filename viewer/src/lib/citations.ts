@@ -31,16 +31,17 @@ export interface Footnote {
 }
 
 // Regex to match citation markers: \ue200cite\ue202...\ue201
-const CITE_PATTERN = /\ue200cite\ue202[^\ue201]+\ue201/g;
+// Also match unclosed markers at end of string (truncated text)
+const CITE_PATTERN = /\ue200cite\ue202[^\ue201]+(\ue201|$)/g;
 
-// Match entity patterns: \ue200entity\ue202...\ue201
-const ENTITY_PATTERN = /\ue200entity\ue202[^\ue201]+\ue201/g;
+// Match entity patterns: \ue200entity\ue202...\ue201 (or unclosed at end)
+const ENTITY_PATTERN = /\ue200entity\ue202[^\ue201]+(\ue201|$)/g;
 
-// Match inline image patterns: \ue200i\ue202...\ue201
-const IMAGE_PATTERN = /\ue200i\ue202[^\ue201]+\ue201/g;
+// Match inline image patterns: \ue200i\ue202...\ue201 (or unclosed at end)
+const IMAGE_PATTERN = /\ue200i\ue202[^\ue201]+(\ue201|$)/g;
 
-// Catch-all: any remaining \ue200...\ue201 markers we haven't handled
-const GENERIC_MARKER = /\ue200[^\ue201]+\ue201/g;
+// Catch-all: any remaining \ue200...\ue201 markers (or unclosed at end)
+const GENERIC_MARKER = /\ue200[^\ue201]+(\ue201|$)/g;
 
 /**
  * Build a map from matched_text to citation data for quick lookup.
