@@ -71,17 +71,13 @@ export function processCitationsSegmented(
   const footnotes: Footnote[] = [];
   const refMap = contentReferences ? buildRefMap(contentReferences) : new Map();
 
-  // Replace entity, image, and unknown markers (these become plain text / markdown)
+  // Replace entity and image markers (these become plain text / markdown)
+  // Do NOT run the generic catch-all here — it would strip cite markers too.
   let entityProcessed = text.replace(ENTITY_PATTERN, (match) => {
     const ref = refMap.get(match);
     return ref?.alt ?? "";
   });
   entityProcessed = entityProcessed.replace(IMAGE_PATTERN, (match) => {
-    const ref = refMap.get(match);
-    return ref?.alt ?? "";
-  });
-  // Catch-all for remaining marker types (navlist, etc.)
-  entityProcessed = entityProcessed.replace(GENERIC_MARKER, (match) => {
     const ref = refMap.get(match);
     return ref?.alt ?? "";
   });
@@ -130,6 +126,17 @@ export function processCitationsSegmented(
   // If no citations were found, return a single text segment
   if (segments.length === 0) {
     segments.push({ type: "text", content: entityProcessed });
+  }
+
+  // Clean remaining unknown markers from text segments (navlist, etc.)
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    if (seg.type === "text") {
+      seg.content = seg.content.replace(GENERIC_MARKER, (match) => {
+        const ref = refMap.get(match);
+        return ref?.alt ?? "";
+      });
+    }
   }
 
   return { segments, footnotes };

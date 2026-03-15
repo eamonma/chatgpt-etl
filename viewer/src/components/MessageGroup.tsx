@@ -387,9 +387,9 @@ function SearchResultGroups({ groups }: { groups: unknown[] }) {
                 <div className="text-gray-400 dark:text-gray-500 truncate">
                   {domain ?? String(entry.url ?? "")}
                 </div>
-                {entry.snippet && (
+                {entry.snippet != null && (
                   <div className="text-gray-500 dark:text-gray-400 line-clamp-2 mt-0.5">
-                    {String(entry.snippet)}
+                    {String(entry.snippet as string)}
                   </div>
                 )}
               </div>
@@ -524,21 +524,21 @@ function ToolCallDisplay({ raw, language: _language, searchIndex }: { raw: strin
   if (parsed.url || parsed.query) {
     return (
       <div className="rounded border border-gray-200 dark:border-gray-700 px-3 py-2 text-xs">
-        {parsed.query && (
+        {parsed.query != null && (
           <div className="flex items-center gap-1.5">
             <svg className="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
-            <span className="font-mono text-gray-700 dark:text-gray-300">{String(parsed.query)}</span>
+            <span className="font-mono text-gray-700 dark:text-gray-300">{String(parsed.query as string)}</span>
           </div>
         )}
-        {parsed.url && (
+        {parsed.url != null && (
           <div className="flex items-center gap-1.5">
             <svg className="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.172 13.828a4 4 0 015.656 0l4-4a4 4 0 00-5.656-5.656l-1.102 1.101" />
             </svg>
-            <span className="font-mono text-gray-700 dark:text-gray-300 break-all">{String(parsed.url)}</span>
+            <span className="font-mono text-gray-700 dark:text-gray-300 break-all">{String(parsed.url as string)}</span>
           </div>
         )}
       </div>

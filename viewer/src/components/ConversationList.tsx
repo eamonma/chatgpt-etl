@@ -1,9 +1,9 @@
 import { useCallback, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useConversations, type ConversationListItem } from "../hooks/useConversations";
 import { SearchBar } from "./SearchBar";
 
 interface ConversationListProps {
-  onSelect: (id: string) => void;
   selectedId: string | null;
 }
 
@@ -27,7 +27,7 @@ function formatDate(ts: number): string {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: d.getFullYear() !== now.getFullYear() ? "numeric" : undefined });
 }
 
-export function ConversationList({ onSelect, selectedId }: ConversationListProps) {
+export function ConversationList({ selectedId }: ConversationListProps) {
   const { conversations, loading, error } = useConversations();
   const [query, setQuery] = useState("");
 
@@ -42,7 +42,7 @@ export function ConversationList({ onSelect, selectedId }: ConversationListProps
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center text-gray-400">
+      <div className="flex-1 flex items-center justify-center text-muted-foreground">
         <div className="animate-pulse">Loading conversations...</div>
       </div>
     );
@@ -50,7 +50,7 @@ export function ConversationList({ onSelect, selectedId }: ConversationListProps
 
   if (error) {
     return (
-      <div className="p-4 text-red-500">
+      <div className="p-4 text-destructive">
         Error: {error}
       </div>
     );
@@ -61,14 +61,13 @@ export function ConversationList({ onSelect, selectedId }: ConversationListProps
       <SearchBar onSearch={handleSearch} />
       <div className="flex-1 overflow-y-auto">
         {filtered.map((c) => (
-          <button
+          <Link
             key={c.id}
-            onClick={() => onSelect(c.id)}
+            to={`/c/${c.id}`}
             className={`
-              w-full text-left px-4 py-3 border-b border-gray-200 dark:border-gray-800
-              text-gray-900 dark:text-gray-100
-              hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors
-              ${selectedId === c.id ? "bg-gray-200 dark:bg-gray-800" : ""}
+              block w-full text-left px-4 py-3 border-b border-border
+              hover:bg-secondary transition-colors no-underline
+              ${selectedId === c.id ? "bg-secondary" : ""}
             `}
           >
             <div className="flex items-center gap-2">
@@ -76,26 +75,26 @@ export function ConversationList({ onSelect, selectedId }: ConversationListProps
                 {c.title || "(untitled)"}
               </span>
               {c.status === "error" && (
-                <span className="shrink-0 w-2 h-2 rounded-full bg-red-500" title="Error" />
+                <span className="shrink-0 w-2 h-2 rounded-full bg-destructive" title="Error" />
               )}
               {c.status === "pending" && (
                 <span className="shrink-0 w-2 h-2 rounded-full bg-yellow-500" title="Pending" />
               )}
             </div>
             <div className="flex items-center gap-2 mt-0.5">
-              <span className="text-xs text-gray-400 dark:text-gray-500">
+              <span className="text-xs text-muted-foreground">
                 {formatDate(c.update_time)}
               </span>
               {c.assetCount > 0 && (
-                <span className="text-xs text-gray-400 dark:text-gray-500">
+                <span className="text-xs text-muted-foreground">
                   {c.assetCount} file{c.assetCount !== 1 ? "s" : ""}
                 </span>
               )}
             </div>
-          </button>
+          </Link>
         ))}
       </div>
-      <div className="px-4 py-2 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-400">
+      <div className="px-4 py-2 border-t border-border text-xs text-muted-foreground">
         {filtered.length} conversation{filtered.length !== 1 ? "s" : ""}
       </div>
     </div>

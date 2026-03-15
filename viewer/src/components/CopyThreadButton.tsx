@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { CheckIcon, CopyIcon } from "lucide-react";
 import type { ThreadNode } from "../lib/thread";
 import { formatThreadAsXml, type FormatMessage } from "../lib/format";
 
@@ -34,18 +35,15 @@ export function CopyThreadButton({
   return (
     <button
       onClick={handleCopy}
-      className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors"
       title="Copy thread as XML"
     >
       {copied ? (
-        <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-        </svg>
+        <CheckIcon className="size-3.5 text-emerald-500" />
       ) : (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-        </svg>
+        <CopyIcon className="size-3.5" />
       )}
+      {copied ? "Copied" : "Copy"}
     </button>
   );
 }
