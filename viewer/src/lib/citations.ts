@@ -138,64 +138,68 @@ export function processCitationsSegmented(
     segments.push({ type: "text", content: entityProcessed });
   }
 
-  // Clean remaining unknown markers and file refs from text segments
+  // Clean remaining markers from text segments.
+  // Order matters: generic markers first, then tethers, then file ref splitting last
+  // (since splitting replaces segments in the array).
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i];
-    if (seg.type === "text") {
-      seg.content = seg.content.replace(GENERIC_MARKER, (match) => {
-        const ref = refMap.get(match);
-        return ref?.alt ?? "";
-      });
-      // Split file refs into separate segments
-      const parts: Segment[] = [];
-      let remaining = seg.content;
-      let fileMatch: RegExpExecArray | null;
-      const fileRe = new RegExp(FILE_REF_PATTERN.source, "g");
-      let lastIdx = 0;
-      while ((fileMatch = fileRe.exec(remaining)) !== null) {
-        if (fileMatch.index > lastIdx) {
-          parts.push({ type: "text", content: remaining.slice(lastIdx, fileMatch.index) });
-        }
-        parts.push({ type: "file", fileId: fileMatch[1] });
-        lastIdx = fileMatch.index + fileMatch[0].length;
-      }
-      if (parts.length > 0) {
-        if (lastIdx < remaining.length) {
-          parts.push({ type: "text", content: remaining.slice(lastIdx) });
-        }
-        segments.splice(i, 1, ...parts);
-        i += parts.length - 1;
-      }
-      seg.content = seg.content.replace(TETHER_PATTERN, (match) => {
-        const ref = refMap.get(match);
-        if (ref) {
-          const r = ref as unknown as {
-            title?: string;
-            url?: string;
-            type?: string;
-            clicked_from_url?: string;
-            clicked_from_title?: string;
-            asset_pointer_links?: string[];
-          };
-          // For image_inline (screenshots), use clicked_from info
-          const title = r.title || r.clicked_from_title || "";
-          const url = r.url || r.clicked_from_url || "";
-          if (title || url) {
-            let idx = footnotes.findIndex((f) => f.url === url);
-            if (idx === -1) {
-              idx = footnotes.length;
-              const screenshotPointer = r.asset_pointer_links?.[0];
-              footnotes.push({
-                title: title || url,
-                url,
-                screenshotPointer,
-              });
-            }
-            return `[${idx + 1}]`;
+    if (seg.type !== "text") continue;
+
+    // 1. Strip generic markers (navlist, etc.)
+    seg.content = seg.content.replace(GENERIC_MARKER, (match) => {
+      const ref = refMap.get(match);
+      return ref?.alt ?? "";
+    });
+
+    // 2. Replace tether citations with footnote references
+    seg.content = seg.content.replace(TETHER_PATTERN, (match) => {
+      const ref = refMap.get(match);
+      if (ref) {
+        const r = ref as unknown as {
+          title?: string;
+          url?: string;
+          type?: string;
+          clicked_from_url?: string;
+          clicked_from_title?: string;
+          asset_pointer_links?: string[];
+        };
+        const title = r.title || r.clicked_from_title || "";
+        const url = r.url || r.clicked_from_url || "";
+        if (title || url) {
+          let idx = footnotes.findIndex((f) => f.url === url);
+          if (idx === -1) {
+            idx = footnotes.length;
+            const screenshotPointer = r.asset_pointer_links?.[0];
+            footnotes.push({
+              title: title || url,
+              url,
+              screenshotPointer,
+            });
           }
+          return `[${idx + 1}]`;
         }
-        return "";
-      });
+      }
+      return "";
+    });
+
+    // 3. Split file refs into separate segments (must be last — modifies array)
+    const parts: Segment[] = [];
+    const fileRe = new RegExp(FILE_REF_PATTERN.source, "g");
+    let lastIdx = 0;
+    let fileMatch: RegExpExecArray | null;
+    while ((fileMatch = fileRe.exec(seg.content)) !== null) {
+      if (fileMatch.index > lastIdx) {
+        parts.push({ type: "text", content: seg.content.slice(lastIdx, fileMatch.index) });
+      }
+      parts.push({ type: "file", fileId: fileMatch[1] });
+      lastIdx = fileMatch.index + fileMatch[0].length;
+    }
+    if (parts.length > 0) {
+      if (lastIdx < seg.content.length) {
+        parts.push({ type: "text", content: seg.content.slice(lastIdx) });
+      }
+      segments.splice(i, 1, ...parts);
+      i += parts.length - 1;
     }
   }
 
