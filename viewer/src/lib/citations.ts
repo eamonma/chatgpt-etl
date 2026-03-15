@@ -80,6 +80,11 @@ export function processCitationsSegmented(
     const ref = refMap.get(match);
     return ref?.alt ?? "";
   });
+  // Catch-all for remaining marker types (navlist, etc.)
+  entityProcessed = entityProcessed.replace(GENERIC_MARKER, (match) => {
+    const ref = refMap.get(match);
+    return ref?.alt ?? "";
+  });
 
   // Split text at citation markers, keeping track of what's text vs citation
   const segments: Segment[] = [];
