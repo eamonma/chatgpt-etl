@@ -1,5 +1,6 @@
 import type { BundledLanguage } from "shiki";
 import type { MessageGroup as MessageGroupType, ThreadNode } from "../lib/thread";
+import { getModelDisplayName } from "../lib/models";
 import { ContentRenderer } from "./ContentRenderer";
 import { BranchSwitcher } from "./BranchSwitcher";
 import {
@@ -124,12 +125,9 @@ export function MessageGroup({
     <Message from="assistant">
       {/* Header */}
       <div className="flex items-baseline gap-2">
-        <span className="text-sm font-semibold">ChatGPT</span>
-        {modelSlug && (
-          <span className="text-xs text-muted-foreground font-mono">
-            {modelSlug}
-          </span>
-        )}
+        <span className="text-sm font-semibold">
+          {modelSlug ? getModelDisplayName(modelSlug) : "ChatGPT"}
+        </span>
         {timestamp && (
           <span className="text-xs text-muted-foreground">
             {formatTimestamp(timestamp)}
