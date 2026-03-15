@@ -24,6 +24,7 @@ import {
   CodeBlockCopyButton,
 } from "./ai-elements/code-block";
 import { FileCard } from "./FileCard";
+import { MermaidDiagram } from "./MermaidDiagram";
 
 function getHostname(url: string): string {
   try {
@@ -225,6 +226,9 @@ export function TextContent({
             if (isBlock) {
               const lang = className?.replace("language-", "") ?? "text";
               const codeText = String(children).replace(/\n$/, "");
+              if (lang === "mermaid") {
+                return <MermaidDiagram code={codeText} />;
+              }
               return (
                 <CodeBlock code={codeText} language={lang as BundledLanguage} className="my-2">
                   <CodeBlockHeader>

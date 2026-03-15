@@ -34,6 +34,10 @@ export async function fetchConversation(
 
   const detail: ConversationDetail = JSON.parse(detailResponse.body);
 
+  if (!detail.mapping) {
+    throw new Error(`Conversation ${id} not found or has no mapping`);
+  }
+
   const refs = extractAssetReferences(id, detail.mapping);
 
   const assets: ResolvedAsset[] = [];

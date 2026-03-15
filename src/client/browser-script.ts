@@ -44,11 +44,16 @@ export function generateBrowserScript(port: number, { compact = false }: { compa
         headers["Authorization"] = "Bearer " + accessToken;
       }
 
-      fetch(request.url, {
+      var fetchOpts = {
         method: request.method,
         headers: headers,
         credentials: "include"
-      })
+      };
+      if (request.body) {
+        fetchOpts.body = request.body;
+      }
+
+      fetch(request.url, fetchOpts)
       .then(function(response) {
         var respHeaders = {};
         response.headers.forEach(function(value, key) {

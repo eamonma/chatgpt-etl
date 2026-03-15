@@ -22,6 +22,7 @@ import {
 import { ChevronDownIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CollapsibleContent } from "@/components/ui/collapsible";
+import { DeepResearchReport, extractDeepResearchState } from "./DeepResearchReport";
 
 function formatTimestamp(ts: number | null): string {
   if (ts == null) return "";
@@ -79,6 +80,7 @@ export function MessageGroup({
   // into collapsible process blocks. When we hit output, flush the process block.
   type Segment =
     | { type: "output"; tn: ThreadNode }
+    | { type: "deep-research"; tn: ThreadNode; widgetState: ReturnType<typeof extractDeepResearchState> }
     | { type: "process"; messages: ThreadNode[] };
 
   const segments: Segment[] = [];
@@ -88,6 +90,10 @@ export function MessageGroup({
     const msg = tn.node.message;
     if (!msg) continue;
     const ct = msg.content.content_type;
+
+    // Deep research tool nodes with a completed report — render as output
+    const deepResearch =
+      msg.author.role === "tool" ? extractDeepResearchState(msg.metadata) : null;
 
     // Output = assistant text/multimodal visible to user, NOT commentary
     // Commentary text is "thinking aloud" preamble — goes in process block
@@ -100,9 +106,15 @@ export function MessageGroup({
     const isToolImageOutput =
       msg.author.role === "tool" &&
       ct === "multimodal_text";
-    const isOutput = isAssistantOutput || isToolImageOutput;
+    const isOutput = isAssistantOutput || isToolImageOutput || deepResearch != null;
 
-    if (isOutput) {
+    if (deepResearch) {
+      if (currentProcess.length > 0) {
+        segments.push({ type: "process", messages: currentProcess });
+        currentProcess = [];
+      }
+      segments.push({ type: "deep-research", tn, widgetState: deepResearch });
+    } else if (isOutput) {
       if (currentProcess.length > 0) {
         segments.push({ type: "process", messages: currentProcess });
         currentProcess = [];
@@ -148,6 +160,15 @@ export function MessageGroup({
           {segments.map((seg, i) => {
             if (seg.type === "process") {
               return <ProcessBlock key={i} messages={seg.messages} conversationId={conversationId} />;
+            }
+            if (seg.type === "deep-research") {
+              return (
+                <DeepResearchReport
+                  key={seg.tn.node.id}
+                  widgetState={seg.widgetState!}
+                  conversationId={conversationId}
+                />
+              );
             }
             const msg = seg.tn.node.message!;
             return (

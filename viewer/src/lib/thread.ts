@@ -110,6 +110,20 @@ export function switchBranch(
   return [...prefix, ...suffix];
 }
 
+/** Check if a message's metadata contains a deep research widget_state with a report. */
+function hasDeepResearchReport(metadata: Record<string, unknown>): boolean {
+  const sdk = metadata?.chatgpt_sdk as Record<string, unknown> | undefined;
+  if (!sdk) return false;
+  const raw = sdk.widget_state;
+  if (!raw) return false;
+  try {
+    const ws = typeof raw === "string" ? JSON.parse(raw) : raw;
+    return ws?.report_message != null;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Filter thread nodes to only those that should be displayed.
  */
@@ -121,8 +135,13 @@ export function filterVisibleMessages(thread: ThreadNode[]): ThreadNode[] {
     if (msg.metadata?.is_visually_hidden_from_conversation) return false;
     // Commentary from non-assistant roles is generally internal, EXCEPT
     // tool multimodal_text which contains generated images (DALL-E etc.)
+    // and tool nodes with deep research widget_state containing a report
     if (msg.channel === "commentary" && msg.author.role !== "assistant") {
-      if (!(msg.author.role === "tool" && msg.content.content_type === "multimodal_text")) {
+      if (msg.author.role === "tool" && msg.content.content_type === "multimodal_text") {
+        // DALL-E images — keep
+      } else if (msg.author.role === "tool" && hasDeepResearchReport(msg.metadata)) {
+        // Deep research report — keep
+      } else {
         return false;
       }
     }

@@ -9,13 +9,37 @@ import { saveManifest } from "../../src/persistence/manifest.js";
 import type { ExportManifest, ExportOptions } from "../../src/types.js";
 
 // Helper to build a minimal conversation detail JSON body
-function makeDetail(id: string, title: string) {
+function makeDetail(id: string, title: string, linkedConversationIds?: string[]) {
+  const mapping: Record<string, unknown> = {};
+  if (linkedConversationIds) {
+    for (let i = 0; i < linkedConversationIds.length; i++) {
+      mapping[`tool-node-${i}`] = {
+        id: `tool-node-${i}`,
+        message: {
+          id: `tool-msg-${i}`,
+          author: { role: "tool", name: "api_tool.call_tool" },
+          create_time: 1000,
+          update_time: 2000,
+          content: { content_type: "code", parts: [""] },
+          metadata: {
+            chatgpt_sdk: {
+              tool_response_metadata: {
+                async_task_conversation_id: linkedConversationIds[i],
+              },
+            },
+          },
+        },
+        parent: null,
+        children: [],
+      };
+    }
+  }
   return JSON.stringify({
     id,
     title,
     create_time: 1000,
     update_time: 2000,
-    mapping: {},
+    mapping,
     moderation_results: [],
     current_node: "node-1",
   });
@@ -859,6 +883,156 @@ describe("orchestrator", () => {
       const manifest = await runExport(client, "test-token", defaultOptions(tmpDir, { refreshList: true }));
 
       expect(manifest.conversations["conv-1"].status).toBe("complete");
+    });
+  });
+
+  describe("deep research (call_mcp)", () => {
+    it("fetches deep research result via call_mcp and writes to disk", async () => {
+      const mcpResponse = {
+        _meta: { deep_research_widget_messages: [{ role: "assistant", content: "Research output" }] },
+      };
+
+      let listCallCount = 0;
+      const client = new MockClient([
+        {
+          pattern: /conversations\?offset=0&limit=100&order=updated(?!.*is_archived)/,
+          handler: {
+            response: () => {
+              listCallCount++;
+              if (listCallCount === 1) {
+                return { status: 200, headers: {}, body: makeListResponse([{ id: "parent-conv", title: "Deep Research" }]) };
+              }
+              return { status: 200, headers: {}, body: emptyListResponse };
+            },
+          },
+        },
+        {
+          pattern: /conversations\?offset=1&limit=100&order=updated(?!.*is_archived)/,
+          handler: { response: { status: 200, headers: {}, body: emptyListResponse } },
+        },
+        {
+          pattern: /backend-api\/conversation\/parent-conv$/,
+          handler: {
+            response: {
+              status: 200,
+              headers: {},
+              body: makeDetail("parent-conv", "Deep Research", ["session-abc"]),
+            },
+          },
+        },
+        {
+          pattern: /backend-api\/ecosystem\/call_mcp$/,
+          handler: {
+            response: {
+              status: 200,
+              headers: {},
+              body: JSON.stringify(mcpResponse),
+            },
+          },
+        },
+      ]);
+
+      const manifest = await runExport(client, "test-token", defaultOptions(tmpDir));
+
+      // Parent should be complete
+      expect(manifest.conversations["parent-conv"].status).toBe("complete");
+
+      // Deep research result should be written to disk
+      const drFile = await readFile(
+        join(tmpDir, "conversations", "parent-conv.deep-research-session-abc.json"),
+        "utf8",
+      );
+      expect(JSON.parse(drFile)).toEqual(mcpResponse);
+
+      // Should have called call_mcp
+      expect(client.getCallCount(/call_mcp/)).toBe(1);
+
+      // Should NOT have tried to fetch session-abc as a regular conversation
+      expect(client.getCallCount(/conversation\/session-abc$/)).toBe(0);
+    });
+
+    it("fetches multiple deep research results from one conversation", async () => {
+      let listCallCount = 0;
+      const client = new MockClient([
+        {
+          pattern: /conversations\?offset=0&limit=100&order=updated(?!.*is_archived)/,
+          handler: {
+            response: () => {
+              listCallCount++;
+              if (listCallCount === 1) {
+                return { status: 200, headers: {}, body: makeListResponse([{ id: "parent", title: "Multi DR" }]) };
+              }
+              return { status: 200, headers: {}, body: emptyListResponse };
+            },
+          },
+        },
+        {
+          pattern: /conversations\?offset=1&limit=100&order=updated(?!.*is_archived)/,
+          handler: { response: { status: 200, headers: {}, body: emptyListResponse } },
+        },
+        {
+          pattern: /backend-api\/conversation\/parent$/,
+          handler: {
+            response: {
+              status: 200,
+              headers: {},
+              body: makeDetail("parent", "Multi DR", ["session-1", "session-2"]),
+            },
+          },
+        },
+        {
+          pattern: /backend-api\/ecosystem\/call_mcp$/,
+          handler: {
+            response: {
+              status: 200,
+              headers: {},
+              body: JSON.stringify({ result: "ok" }),
+            },
+          },
+        },
+      ]);
+
+      const manifest = await runExport(client, "test-token", defaultOptions(tmpDir));
+
+      expect(manifest.conversations["parent"].status).toBe("complete");
+      expect(client.getCallCount(/call_mcp/)).toBe(2);
+
+      // Both result files should exist
+      const dr1 = await readFile(join(tmpDir, "conversations", "parent.deep-research-session-1.json"), "utf8");
+      expect(JSON.parse(dr1)).toEqual({ result: "ok" });
+      const dr2 = await readFile(join(tmpDir, "conversations", "parent.deep-research-session-2.json"), "utf8");
+      expect(JSON.parse(dr2)).toEqual({ result: "ok" });
+    });
+
+    it("conversation without deep research refs works normally", async () => {
+      let listCallCount = 0;
+      const client = new MockClient([
+        {
+          pattern: /conversations\?offset=0&limit=100&order=updated(?!.*is_archived)/,
+          handler: {
+            response: () => {
+              listCallCount++;
+              if (listCallCount === 1) {
+                return { status: 200, headers: {}, body: makeListResponse([{ id: "conv-1", title: "Normal" }]) };
+              }
+              return { status: 200, headers: {}, body: emptyListResponse };
+            },
+          },
+        },
+        {
+          pattern: /conversations\?offset=1&limit=100&order=updated(?!.*is_archived)/,
+          handler: { response: { status: 200, headers: {}, body: emptyListResponse } },
+        },
+        {
+          pattern: /backend-api\/conversation\/conv-1$/,
+          handler: { response: { status: 200, headers: {}, body: makeDetail("conv-1", "Normal") } },
+        },
+      ]);
+
+      const manifest = await runExport(client, "test-token", defaultOptions(tmpDir));
+
+      expect(manifest.conversations["conv-1"].status).toBe("complete");
+      expect(client.getCallCount(/call_mcp/)).toBe(0);
     });
   });
 });

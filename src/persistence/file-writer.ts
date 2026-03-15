@@ -37,6 +37,16 @@ export async function writeAsset(
   await writeIfChanged(filePath, data);
 }
 
+export async function writeDeepResearchResult(
+  outputDir: string,
+  parentId: string,
+  sessionId: string,
+  data: unknown,
+): Promise<void> {
+  const filePath = join(outputDir, "conversations", `${parentId}.deep-research-${sessionId}.json`);
+  await writeIfChanged(filePath, JSON.stringify(data, null, 2));
+}
+
 /** Write an index mapping fileId → fileName for a conversation's assets. */
 export async function writeAssetIndex(
   outputDir: string,

@@ -3,8 +3,9 @@ import type { ExportManifest, ExportOptions } from "./types.js";
 import { listAllConversations } from "./api/conversation-lister.js";
 import { listNewAndUpdatedConversations } from "./api/incremental-refresh.js";
 import { fetchConversation } from "./api/conversation-fetcher.js";
+import { extractDeepResearchRefs, fetchDeepResearchResult } from "./api/deep-research-fetcher.js";
 import { loadManifest, saveManifest, markConversation } from "./persistence/manifest.js";
-import { writeConversation, writeAsset, writeAssetIndex } from "./persistence/file-writer.js";
+import { writeConversation, writeAsset, writeAssetIndex, writeDeepResearchResult } from "./persistence/file-writer.js";
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -91,12 +92,14 @@ export async function runExport(
     return manifest;
   }
 
-  // 5. Process each pending conversation
-  const total = pendingIds.length;
+  // 5. Process pending conversations
+  const queue = [...pendingIds];
+  let total = queue.length;
   let consecutiveErrors = 0;
   let processed = 0;
 
-  for (const id of pendingIds) {
+  while (queue.length > 0) {
+    const id = queue.shift()!;
     const title = manifest.conversations[id]?.title ?? id;
 
     try {
@@ -127,6 +130,16 @@ export async function runExport(
         }
         // Write asset index (fileId → fileName mapping)
         await writeAssetIndex(outputDir, id, result.assets);
+      }
+
+      // Fetch deep research results via call_mcp
+      const deepResearchRefs = extractDeepResearchRefs(id, result.detail.mapping);
+      for (const ref of deepResearchRefs) {
+        if (delayMs > 0) {
+          await delay(delayMs);
+        }
+        const deepResult = await fetchDeepResearchResult(client, token, ref);
+        await writeDeepResearchResult(outputDir, id, ref.sessionId, deepResult);
       }
 
       // Mark complete (clear any previous error)

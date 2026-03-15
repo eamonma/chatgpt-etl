@@ -84,7 +84,7 @@ export function createServer(options: ServerOptions): http.Server {
           res.end(JSON.stringify({ error: "Failed to read conversations directory" }));
           return;
         }
-        const jsonFiles = files.filter((f) => f.endsWith(".json"));
+        const jsonFiles = files.filter((f) => f.endsWith(".json") && !f.includes(".deep-research-"));
         const entries: { id: string; title: string; create_time: number; update_time: number }[] = [];
         let remaining = jsonFiles.length;
         if (remaining === 0) {
