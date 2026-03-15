@@ -1,6 +1,6 @@
-import type { MessageGroup as MessageGroupType } from "../lib/thread";
+import { useState } from "react";
+import type { MessageGroup as MessageGroupType, ThreadNode } from "../lib/thread";
 import { ContentRenderer } from "./ContentRenderer";
-import { ThinkingBlock } from "./ThinkingBlock";
 
 function formatTimestamp(ts: number | null): string {
   if (ts == null) return "";
@@ -12,15 +12,6 @@ function formatTimestamp(ts: number | null): string {
     minute: "2-digit",
   });
 }
-
-/** Content types that represent "internal" tool/thinking work, shown collapsed. */
-const TOOL_CONTENT_TYPES = new Set([
-  "code",
-  "execution_output",
-  "tether_browsing_display",
-  "sonic_webpage",
-  "computer_output",
-]);
 
 export function MessageGroup({
   group,
@@ -55,39 +46,25 @@ export function MessageGroup({
     );
   }
 
-  // Assistant group: may contain assistant text, tool calls, thoughts, etc.
-  // Find the "main" assistant message (the visible text response)
-  const mainMessages = group.messages.filter((tn) => {
-    const msg = tn.node.message;
-    if (!msg) return false;
-    return msg.author.role === "assistant" &&
-      msg.content.content_type === "text" &&
-      msg.recipient === "all";
-  });
+  // Assistant group: split into "process" (thinking/tools) and "output" (final response)
+  const processMessages: ThreadNode[] = [];
+  const outputMessages: ThreadNode[] = [];
 
-  const thinkingMessages = group.messages.filter((tn) => {
+  for (const tn of group.messages) {
     const msg = tn.node.message;
-    return msg?.content.content_type === "thoughts";
-  });
+    if (!msg) continue;
+    const ct = msg.content.content_type;
 
-  const reasoningMessages = group.messages.filter((tn) => {
-    const msg = tn.node.message;
-    return msg?.content.content_type === "reasoning_recap";
-  });
+    const isOutput =
+      (msg.author.role === "assistant" && ct === "text" && msg.recipient === "all") ||
+      (msg.author.role === "assistant" && ct === "multimodal_text" && msg.recipient === "all");
 
-  const toolMessages = group.messages.filter((tn) => {
-    const msg = tn.node.message;
-    if (!msg) return false;
-    return msg.author.role === "tool" || TOOL_CONTENT_TYPES.has(msg.content.content_type);
-  });
-
-  // Multimodal assistant responses
-  const multimodalMessages = group.messages.filter((tn) => {
-    const msg = tn.node.message;
-    return msg?.author.role === "assistant" &&
-      msg.content.content_type === "multimodal_text" &&
-      msg.recipient === "all";
-  });
+    if (isOutput) {
+      outputMessages.push(tn);
+    } else {
+      processMessages.push(tn);
+    }
+  }
 
   // Get model slug and timestamp from first assistant message
   const firstAssistant = group.messages.find((tn) => tn.node.message?.author.role === "assistant");
@@ -119,40 +96,13 @@ export function MessageGroup({
         </div>
 
         <div className="text-sm leading-relaxed space-y-2">
-          {/* Thinking blocks (collapsible) */}
-          {thinkingMessages.map((tn) => (
-            <ThinkingBlock key={tn.node.id} content={tn.node.message!.content} />
-          ))}
-
-          {/* Reasoning recap (if separate from thinking) */}
-          {reasoningMessages.map((tn) => (
-            <ContentRenderer
-              key={tn.node.id}
-              content={tn.node.message!.content}
-              conversationId={conversationId}
-            />
-          ))}
-
-          {/* Tool activity (collapsed summary) */}
-          {toolMessages.length > 0 && (
-            <ToolActivity messages={toolMessages} conversationId={conversationId} />
+          {/* Process block: thinking + tool calls, all in one collapsible */}
+          {processMessages.length > 0 && (
+            <ProcessBlock messages={processMessages} conversationId={conversationId} />
           )}
 
-          {/* Main text responses */}
-          {mainMessages.map((tn) => {
-            const msg = tn.node.message!;
-            return (
-              <ContentRenderer
-                key={tn.node.id}
-                content={msg.content}
-                conversationId={conversationId}
-                contentReferences={msg.metadata?.content_references as unknown[] | undefined}
-              />
-            );
-          })}
-
-          {/* Multimodal responses */}
-          {multimodalMessages.map((tn) => {
+          {/* Final output */}
+          {outputMessages.map((tn) => {
             const msg = tn.node.message!;
             return (
               <ContentRenderer
@@ -169,47 +119,132 @@ export function MessageGroup({
   );
 }
 
-/** Collapsible section showing tool activity within an assistant turn. */
-function ToolActivity({
+/**
+ * Collapsible block showing the assistant's "thinking process":
+ * thoughts, tool calls, tool results, reasoning recaps — all interleaved.
+ */
+function ProcessBlock({
   messages,
   conversationId,
 }: {
-  messages: MessageGroupType["messages"];
+  messages: ThreadNode[];
   conversationId: string;
 }) {
+  const [expanded, setExpanded] = useState(false);
+
+  // Build a summary label
   const toolNames = [...new Set(
     messages
+      .filter((tn) => tn.node.message?.author.role === "tool")
       .map((tn) => tn.node.message?.author.name)
       .filter(Boolean)
   )];
+  const hasThoughts = messages.some((tn) =>
+    tn.node.message?.content.content_type === "thoughts"
+  );
 
-  const label = toolNames.length > 0
-    ? `Used ${toolNames.join(", ")}`
-    : `${messages.length} tool call${messages.length !== 1 ? "s" : ""}`;
+  let label = "Thinking";
+  if (toolNames.length > 0) {
+    label = hasThoughts
+      ? `Thought and used ${toolNames.join(", ")}`
+      : `Used ${toolNames.join(", ")}`;
+  }
 
   return (
-    <details className="group">
-      <summary className="text-xs text-gray-400 dark:text-gray-500 cursor-pointer hover:text-gray-600 dark:hover:text-gray-300 select-none">
-        {label}
-      </summary>
-      <div className="mt-2 space-y-2 pl-3 border-l-2 border-gray-200 dark:border-gray-700">
-        {messages.map((tn) => {
-          const msg = tn.node.message!;
-          return (
-            <div key={tn.node.id} className="text-xs text-gray-500 dark:text-gray-400">
-              {msg.author.name && (
-                <span className="font-mono text-purple-500 dark:text-purple-400 mr-1">
-                  {msg.author.name}
-                </span>
-              )}
+    <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-500 dark:text-gray-400
+          hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left"
+      >
+        <svg
+          className={`w-3 h-3 transition-transform shrink-0 ${expanded ? "rotate-90" : ""}`}
+          fill="currentColor" viewBox="0 0 20 20"
+        >
+          <path d="M6 4l8 6-8 6V4z" />
+        </svg>
+        <span className="font-medium">{label}</span>
+      </button>
+
+      {expanded && (
+        <div className="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50
+          px-4 py-3 space-y-3 text-sm text-gray-600 dark:text-gray-400">
+          {messages.map((tn) => {
+            const msg = tn.node.message!;
+            const ct = msg.content.content_type;
+            const role = msg.author.role;
+
+            // Thoughts
+            if (ct === "thoughts") {
+              const raw = (msg.content as unknown as Record<string, unknown>).thoughts;
+              const thoughts = Array.isArray(raw) ? raw as { summary: string; content: string }[] : [];
+              if (thoughts.length === 0) return null;
+              return (
+                <div key={tn.node.id} className="space-y-2">
+                  {thoughts.map((t, i) => (
+                    <div key={i} className="whitespace-pre-wrap leading-relaxed">
+                      {t.summary && <span className="font-medium text-gray-700 dark:text-gray-300">{t.summary}: </span>}
+                      {t.content}
+                    </div>
+                  ))}
+                </div>
+              );
+            }
+
+            // Tool calls (code sent to tool)
+            if (role === "assistant" && ct === "code") {
+              const toolContent = msg.content as unknown as Record<string, unknown>;
+              return (
+                <div key={tn.node.id} className="font-mono text-xs bg-gray-100 dark:bg-gray-800 rounded p-2 overflow-x-auto">
+                  {String(toolContent.text ?? "")}
+                </div>
+              );
+            }
+
+            // Tool results
+            if (role === "tool") {
+              const toolName = msg.author.name;
+              const text = (msg.content.parts ?? [])
+                .filter((p): p is string => typeof p === "string")
+                .join("\n")
+                .slice(0, 500);
+              if (!text.trim()) return null;
+              return (
+                <div key={tn.node.id}>
+                  {toolName && (
+                    <div className="text-xs font-mono text-purple-500 dark:text-purple-400 mb-1">
+                      {toolName}
+                    </div>
+                  )}
+                  <div className="text-xs bg-gray-100 dark:bg-gray-800 rounded p-2 whitespace-pre-wrap overflow-x-auto max-h-40 overflow-y-auto">
+                    {text}{text.length >= 500 ? "..." : ""}
+                  </div>
+                </div>
+              );
+            }
+
+            // Reasoning recap
+            if (ct === "reasoning_recap") {
+              const rc = msg.content as unknown as Record<string, unknown>;
+              return (
+                <div key={tn.node.id} className="italic text-gray-500 dark:text-gray-400 border-l-2 border-purple-400 pl-3">
+                  {String(rc.content ?? "")}
+                </div>
+              );
+            }
+
+            // Anything else in the process block — render generically
+            return (
               <ContentRenderer
+                key={tn.node.id}
                 content={msg.content}
                 conversationId={conversationId}
               />
-            </div>
-          );
-        })}
-      </div>
-    </details>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
