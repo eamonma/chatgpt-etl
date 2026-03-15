@@ -675,4 +675,190 @@ describe("orchestrator", () => {
     const assetContent = await readFile(join(tmpDir, "assets", "conv-1", "image.png"));
     expect(assetContent.toString()).toBe("fake-image-binary-data");
   });
+
+  describe("incremental refresh (refreshList)", () => {
+    // Helper to write a conversation JSON file to disk
+    async function writeConvFile(dir: string, id: string, update_time: number) {
+      const { mkdir, writeFile: wf } = await import("node:fs/promises");
+      const convDir = join(dir, "conversations");
+      await mkdir(convDir, { recursive: true });
+      await wf(
+        join(convDir, `${id}.json`),
+        JSON.stringify({
+          id,
+          title: `Conv ${id}`,
+          create_time: 1000,
+          update_time,
+          mapping: {},
+          moderation_results: [],
+          current_node: "node-1",
+        }),
+      );
+    }
+
+    it("refreshList only fetches new and updated conversations, not unchanged ones", async () => {
+      // Setup: manifest has conv-1 and conv-2 as complete
+      const existingManifest: ExportManifest = {
+        version: 1,
+        exportedAt: "2025-01-01T00:00:00.000Z",
+        conversations: {
+          "conv-1": { id: "conv-1", title: "First", status: "complete", assetCount: 0 },
+          "conv-2": { id: "conv-2", title: "Second", status: "complete", assetCount: 0 },
+        },
+      };
+      await saveManifest(tmpDir, existingManifest);
+
+      // Write conversation files to disk with known update_times
+      await writeConvFile(tmpDir, "conv-1", 2000); // unchanged
+      await writeConvFile(tmpDir, "conv-2", 2000); // will be updated (API says 3000)
+
+      // API returns: conv-3 (new), conv-2 (updated), conv-1 (unchanged)
+      const page0 = [
+        { id: "conv-3", title: "Third", create_time: 1000, update_time: 4000 },
+        { id: "conv-2", title: "Second Updated", create_time: 1000, update_time: 3000 },
+        { id: "conv-1", title: "First", create_time: 1000, update_time: 2000 },
+      ];
+
+      let listCallCount = 0;
+      const client = new MockClient([
+        {
+          pattern: /conversations\?offset=0&limit=100&order=updated(?!.*is_archived)/,
+          handler: { response: { status: 200, headers: {}, body: JSON.stringify({ items: page0 }) } },
+        },
+        {
+          // Page 1: all unchanged — triggers early stop
+          pattern: /conversations\?offset=3&limit=100&order=updated(?!.*is_archived)/,
+          handler: { response: { status: 200, headers: {}, body: emptyListResponse } },
+        },
+        {
+          pattern: /backend-api\/conversation\/conv-2$/,
+          handler: { response: { status: 200, headers: {}, body: makeDetail("conv-2", "Second Updated") } },
+        },
+        {
+          pattern: /backend-api\/conversation\/conv-3$/,
+          handler: { response: { status: 200, headers: {}, body: makeDetail("conv-3", "Third") } },
+        },
+      ]);
+
+      const manifest = await runExport(client, "test-token", defaultOptions(tmpDir, { refreshList: true }));
+
+      // conv-1 should remain complete (unchanged, not re-fetched)
+      expect(manifest.conversations["conv-1"].status).toBe("complete");
+      // conv-2 should be re-fetched and complete
+      expect(manifest.conversations["conv-2"].status).toBe("complete");
+      // conv-3 should be fetched and complete
+      expect(manifest.conversations["conv-3"].status).toBe("complete");
+
+      // Should NOT have fetched conv-1 detail
+      expect(client.getCallCount(/backend-api\/conversation\/conv-1/)).toBe(0);
+      // Should have fetched conv-2 and conv-3
+      expect(client.getCallCount(/backend-api\/conversation\/conv-2/)).toBe(1);
+      expect(client.getCallCount(/backend-api\/conversation\/conv-3/)).toBe(1);
+    });
+
+    it("refreshList stops pagination early when a full page is unchanged", async () => {
+      // Setup: 200 conversations already exported
+      const existingManifest: ExportManifest = {
+        version: 1,
+        exportedAt: "2025-01-01T00:00:00.000Z",
+        conversations: {},
+      };
+      // Create 200 conversations in manifest and on disk
+      for (let i = 0; i < 200; i++) {
+        const id = `old-${i}`;
+        existingManifest.conversations[id] = {
+          id,
+          title: `Old ${i}`,
+          status: "complete",
+          assetCount: 0,
+        };
+        await writeConvFile(tmpDir, id, 1000 + i);
+      }
+      await saveManifest(tmpDir, existingManifest);
+
+      // API: page 0 has 3 new conversations + 97 unchanged
+      const page0Items = [
+        { id: "new-1", title: "New 1", create_time: 1000, update_time: 5000 },
+        { id: "new-2", title: "New 2", create_time: 1000, update_time: 4000 },
+        { id: "new-3", title: "New 3", create_time: 1000, update_time: 3000 },
+        ...Array.from({ length: 97 }, (_, i) => ({
+          id: `old-${199 - i}`,
+          title: `Old ${199 - i}`,
+          create_time: 1000,
+          update_time: 1000 + (199 - i),
+        })),
+      ];
+      // API: page 1 has 100 unchanged conversations — should trigger early stop
+      const page1Items = Array.from({ length: 100 }, (_, i) => ({
+        id: `old-${102 - i}`,
+        title: `Old ${102 - i}`,
+        create_time: 1000,
+        update_time: 1000 + (102 - i),
+      }));
+      // Page 2 should never be reached
+      const page2Items = [
+        { id: "old-0", title: "Old 0", create_time: 1000, update_time: 1000 },
+      ];
+
+      const client = new MockClient([
+        {
+          pattern: /offset=0/,
+          handler: { response: { status: 200, headers: {}, body: JSON.stringify({ items: page0Items }) } },
+        },
+        {
+          pattern: /offset=100/,
+          handler: { response: { status: 200, headers: {}, body: JSON.stringify({ items: page1Items }) } },
+        },
+        {
+          pattern: /offset=200/,
+          handler: { response: { status: 200, headers: {}, body: JSON.stringify({ items: page2Items }) } },
+        },
+        {
+          pattern: /backend-api\/conversation\/new-1$/,
+          handler: { response: { status: 200, headers: {}, body: makeDetail("new-1", "New 1") } },
+        },
+        {
+          pattern: /backend-api\/conversation\/new-2$/,
+          handler: { response: { status: 200, headers: {}, body: makeDetail("new-2", "New 2") } },
+        },
+        {
+          pattern: /backend-api\/conversation\/new-3$/,
+          handler: { response: { status: 200, headers: {}, body: makeDetail("new-3", "New 3") } },
+        },
+      ]);
+
+      const manifest = await runExport(client, "test-token", defaultOptions(tmpDir, { refreshList: true }));
+
+      // New conversations should be complete
+      expect(manifest.conversations["new-1"].status).toBe("complete");
+      expect(manifest.conversations["new-2"].status).toBe("complete");
+      expect(manifest.conversations["new-3"].status).toBe("complete");
+
+      // Page 2 should NOT have been fetched (stopped at page 1 — all unchanged)
+      expect(client.getCallCount(/offset=200/)).toBe(0);
+    });
+
+    it("refreshList on first run (no manifest) falls back to full listing", async () => {
+      const convos = [{ id: "conv-1", title: "First" }];
+
+      const client = new MockClient([
+        {
+          pattern: /conversations\?offset=0&limit=100&order=updated(?!.*is_archived)/,
+          handler: { response: { status: 200, headers: {}, body: makeListResponse(convos) } },
+        },
+        {
+          pattern: /conversations\?offset=1&limit=100&order=updated(?!.*is_archived)/,
+          handler: { response: { status: 200, headers: {}, body: emptyListResponse } },
+        },
+        {
+          pattern: /backend-api\/conversation\/conv-1$/,
+          handler: { response: { status: 200, headers: {}, body: makeDetail("conv-1", "First") } },
+        },
+      ]);
+
+      const manifest = await runExport(client, "test-token", defaultOptions(tmpDir, { refreshList: true }));
+
+      expect(manifest.conversations["conv-1"].status).toBe("complete");
+    });
+  });
 });

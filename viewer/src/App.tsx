@@ -1,6 +1,7 @@
 import { Routes, Route, Outlet, useParams, useNavigate, useMatch } from "react-router-dom";
 import { ConversationList } from "./components/ConversationList";
 import { ConversationView } from "./components/ConversationView";
+import { Toaster } from "@/components/ui/sonner";
 
 function Layout() {
   const match = useMatch("/c/:id");
@@ -57,11 +58,14 @@ function EmptyState() {
 
 export function App() {
   return (
-    <Routes>
-      <Route element={<Layout />}>
-        <Route index element={<EmptyState />} />
-        <Route path="c/:id" element={<ConversationPage />} />
-      </Route>
-    </Routes>
+    <>
+      <Routes>
+        <Route element={<Layout />}>
+          <Route index element={<EmptyState />} />
+          <Route path="c/:id" element={<ConversationPage />} />
+        </Route>
+      </Routes>
+      <Toaster position="top-right" richColors />
+    </>
   );
 }

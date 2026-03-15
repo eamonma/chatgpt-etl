@@ -52,7 +52,7 @@ export function MultimodalContent({
             return (
               <img
                 key={i}
-                src={`/api/assets/${conversationId}/${fileId}`}
+                src={`/api/assets/${conversationId}/resolve/${fileId}`}
                 alt=""
                 className="max-w-full rounded-lg mt-2"
                 loading="lazy"

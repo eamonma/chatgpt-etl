@@ -1,8 +1,8 @@
 # chatgpt-etl
 
-Export all ChatGPT conversations from a Business/Teams plan that lacks built-in export.
+Export all ChatGPT conversations from a Business/Teams plan that lacks built-in export, and browse them locally.
 
-A Node.js CLI proxies API requests through a browser script pasted into ChatGPT's console, bypassing Cloudflare. Produces a resumable, browseable JSON archive.
+A Node.js CLI proxies API requests through a browser script pasted into ChatGPT's console, bypassing Cloudflare. Produces a resumable JSON archive. A local viewer app renders conversations with full markdown, code highlighting, citations, and images.
 
 ## Prerequisites
 
@@ -12,11 +12,20 @@ A Node.js CLI proxies API requests through a browser script pasted into ChatGPT'
 ## Quick start
 
 ```bash
+# 1. Install and export all conversations
 npm install
-npx tsx bin/chatgpt-etl.ts --output ./output --limit 3
+npx tsx bin/chatgpt-etl.ts --output ./output
 ```
 
-Paste the one-liner it prints into ChatGPT's DevTools console. Export starts automatically.
+The CLI prints a one-line script — paste it into ChatGPT's browser DevTools console (F12 → Console). The export starts automatically and downloads all conversations, images, and files. It's resumable: Ctrl+C and re-run the same command to pick up where you left off.
+
+```bash
+# 2. Browse your conversations locally
+cd viewer
+npm install
+npm run server &    # serves data from ../output
+npm run dev         # starts the viewer at http://localhost:5173
+```
 
 ## Usage
 
@@ -30,7 +39,7 @@ npx tsx bin/chatgpt-etl.ts --output <dir> [options]
 | `--limit, -l <n>` | all | Export next N pending conversations |
 | `--dry-run` | off | List conversations and save manifest, but don't download |
 | `--delay-ms <n>` | 500 | Milliseconds between API requests |
-| `--refresh-list` | off | Re-fetch conversation list from API (even if manifest exists) |
+| `--refresh-list` | off | Incrementally sync: fetches only new/updated conversations |
 | `--port, -p <n>` | 8787 | WebSocket bridge port |
 | `--no-include-archived` | included | Skip archived conversations |
 | `--no-include-projects` | included | Skip project conversations |
@@ -59,7 +68,7 @@ npx tsx bin/chatgpt-etl.ts --output ./test-export --limit 5 --no-include-assets 
 # Resume after interruption (just re-run the same command)
 npx tsx bin/chatgpt-etl.ts --output ./chatgpt-backup
 
-# Re-fetch conversation list (e.g., new conversations since last run)
+# Sync new/updated conversations since last export (incremental)
 npx tsx bin/chatgpt-etl.ts --output ./chatgpt-backup --refresh-list
 
 # Different port if 8787 is taken
@@ -76,7 +85,12 @@ output/
   assets/
     {conversation-id}/
       {filename}             # downloaded images/files
+      _index.json            # fileId → fileName mapping
 ```
+
+## Incremental sync
+
+`--refresh-list` compares the API's conversation list against saved files on disk by `update_time`. Only new and updated conversations are re-fetched. Pagination stops early once a full page of unchanged conversations is found, so syncing a few new chats against a large archive is fast.
 
 ## How it works
 
@@ -85,6 +99,16 @@ output/
 3. The script connects back and acts as a fetch proxy, using the browser's authenticated session
 4. CLI sends API requests through the proxy, saves responses to disk
 5. Manifest tracks progress; Ctrl+C and re-run to resume
+
+## Viewer
+
+The viewer is a local web app in `viewer/` (see Quick start above). To point at a different export directory:
+
+```bash
+cd viewer
+npm run server -- --output /path/to/export &
+npm run dev
+```
 
 ## Development
 

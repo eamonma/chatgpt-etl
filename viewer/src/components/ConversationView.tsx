@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useConversation } from "../hooks/useConversation";
 import { MessageGroup } from "./MessageGroup";
 import { CopyThreadButton } from "./CopyThreadButton";
+import { ContinueInButton } from "./ContinueInButton";
 import { MetadataPanel } from "./MetadataPanel";
 import {
   Conversation,
@@ -74,7 +75,9 @@ export function ConversationView({
             <div className="h-20" />
             <div>
               <div className="max-w-3xl mx-auto px-4 pb-4 flex items-center justify-center gap-2 pointer-events-auto">
-                <CopyThreadButton thread={visibleThread} title={conversation?.title ?? ""} />
+                <CopyThreadButton thread={visibleThread} title={conversation?.title ?? ""} conversationId={conversationId} />
+                <ContinueInButton thread={visibleThread} title={conversation?.title ?? ""} conversationId={conversationId} target="claude" />
+                <ContinueInButton thread={visibleThread} title={conversation?.title ?? ""} conversationId={conversationId} target="chatgpt" />
                 <button
                   onClick={() => setShowMetadata((v) => !v)}
                   className={`

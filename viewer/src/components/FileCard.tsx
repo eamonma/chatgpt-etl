@@ -19,6 +19,20 @@ export function FileCard({ fileId, conversationId }: FileCardProps) {
 
   const resolveUrl = `/api/assets/${conversationId}/resolve/${fileId}`;
 
+  // Eagerly fetch just the filename on mount via HEAD request
+  useEffect(() => {
+    fetch(resolveUrl, { method: "HEAD" })
+      .then((res) => {
+        const name = res.headers.get("X-File-Name") ?? fileId;
+        setFileName(name);
+        setIsMarkdown(name.endsWith(".md") || name.endsWith(".markdown") || name.endsWith(".txt"));
+      })
+      .catch(() => {
+        // Silently fall back to fileId display
+      });
+  }, [resolveUrl, fileId]);
+
+  // Fetch full content when expanded
   useEffect(() => {
     if (!expanded || content !== null) return;
 

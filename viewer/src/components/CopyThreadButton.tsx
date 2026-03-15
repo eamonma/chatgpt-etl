@@ -1,35 +1,41 @@
 import { useState } from "react";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import type { ThreadNode } from "../lib/thread";
-import { formatThreadAsXml, type FormatMessage } from "../lib/format";
+import { formatThreadAsXml, collectFileIds, resolveFiles, type FormatMessage } from "../lib/format";
+
+function threadToMessages(thread: ThreadNode[]): FormatMessage[] {
+  return thread
+    .filter((tn) => tn.node.message != null)
+    .map((tn) => {
+      const msg = tn.node.message!;
+      return {
+        role: msg.author.role,
+        recipient: msg.recipient ?? "all",
+        contentType: msg.content.content_type,
+        parts: (msg.content.parts ?? []) as (string | Record<string, unknown>)[],
+      };
+    });
+}
 
 export function CopyThreadButton({
   thread,
   title,
+  conversationId,
 }: {
   thread: ThreadNode[];
   title: string;
+  conversationId: string;
 }) {
   const [copied, setCopied] = useState(false);
 
-  const handleCopy = () => {
-    const messages: FormatMessage[] = thread
-      .filter((tn) => tn.node.message != null)
-      .map((tn) => {
-        const msg = tn.node.message!;
-        return {
-          role: msg.author.role,
-          recipient: msg.recipient ?? "all",
-          contentType: msg.content.content_type,
-          parts: (msg.content.parts ?? []) as (string | Record<string, unknown>)[],
-        };
-      });
-
-    const xml = formatThreadAsXml(messages, title);
-    navigator.clipboard.writeText(xml).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
+  const handleCopy = async () => {
+    const messages = threadToMessages(thread);
+    const fileIds = collectFileIds(messages);
+    const resolved = fileIds.length > 0 ? await resolveFiles(conversationId, fileIds) : undefined;
+    const xml = formatThreadAsXml(messages, title, resolved);
+    await navigator.clipboard.writeText(xml);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (

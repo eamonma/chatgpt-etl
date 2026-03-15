@@ -1,6 +1,7 @@
 import type { ChatGptClient } from "./client/interface.js";
 import type { ExportManifest, ExportOptions } from "./types.js";
 import { listAllConversations } from "./api/conversation-lister.js";
+import { listNewAndUpdatedConversations } from "./api/incremental-refresh.js";
 import { fetchConversation } from "./api/conversation-fetcher.js";
 import { loadManifest, saveManifest, markConversation } from "./persistence/manifest.js";
 import { writeConversation, writeAsset, writeAssetIndex } from "./persistence/file-writer.js";
@@ -40,15 +41,29 @@ export async function runExport(
 
   const hasExistingConversations = Object.keys(manifest.conversations).length > 0;
 
-  if (!hasExistingConversations || options.refreshList) {
-    // 2. First run: list conversations from the API
+  if (hasExistingConversations && options.refreshList) {
+    // 2a. Incremental refresh: compare API list against saved files on disk.
+    // Only new/updated conversations are marked pending.
+    const changed = await listNewAndUpdatedConversations(client, token, outputDir);
+
+    for (const conv of changed) {
+      manifest = markConversation(manifest, conv.id, {
+        id: conv.id,
+        title: conv.title,
+        status: "pending",
+        assetCount: 0,
+      });
+    }
+
+    await saveManifest(outputDir, manifest);
+  } else if (!hasExistingConversations) {
+    // 2b. First run: list all conversations from the API
     const allConversations = await listAllConversations(client, {
       token,
       includeArchived: options.includeArchived,
       includeProjects: options.includeProjects,
     });
 
-    // 3. Initialize manifest entries
     for (const conv of allConversations) {
       manifest = markConversation(manifest, conv.id, {
         id: conv.id,
