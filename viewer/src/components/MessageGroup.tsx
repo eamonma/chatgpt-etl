@@ -297,17 +297,26 @@ function ProcessBlock({
   );
 }
 
-/** Renders search result groups as compact cards. */
+/** Renders search result groups as collapsible compact cards. */
 function SearchResultGroups({ groups }: { groups: unknown[] }) {
+  const allEntries = (groups as Record<string, unknown>[]).flatMap((g) =>
+    ((g.entries ?? []) as Record<string, unknown>[]).map((entry) => ({
+      entry,
+      domain: g.domain as string | undefined,
+    }))
+  );
+
   return (
-    <div className="space-y-1">
-      {(groups as Record<string, unknown>[]).map((group, gi) => {
-        const entries = (group.entries ?? []) as Record<string, unknown>[];
-        return entries.map((entry, ei) => {
+    <details className="group">
+      <summary className="text-xs text-gray-400 dark:text-gray-500 cursor-pointer hover:text-gray-600 dark:hover:text-gray-300 select-none">
+        {allEntries.length} result{allEntries.length !== 1 ? "s" : ""}
+      </summary>
+      <div className="mt-2 space-y-1">
+        {allEntries.map(({ entry, domain }, i) => {
           const refId = entry.ref_id as { turn_index: number; ref_type: string; ref_index: number } | undefined;
           const refKey = refId ? `turn${refId.turn_index}${refId.ref_type}${refId.ref_index}` : null;
           return (
-            <div key={`${gi}-${ei}`} className="flex gap-2 text-xs py-1">
+            <div key={i} className="flex gap-2 text-xs py-1">
               {refKey && (
                 <span className="shrink-0 font-mono text-gray-400 dark:text-gray-500 w-24 truncate" title={refKey}>
                   {refKey}
@@ -318,7 +327,7 @@ function SearchResultGroups({ groups }: { groups: unknown[] }) {
                   {String(entry.title ?? "")}
                 </div>
                 <div className="text-gray-400 dark:text-gray-500 truncate">
-                  {String(entry.url ?? "")}
+                  {domain ?? String(entry.url ?? "")}
                 </div>
                 {entry.snippet && (
                   <div className="text-gray-500 dark:text-gray-400 line-clamp-2 mt-0.5">
@@ -328,9 +337,9 @@ function SearchResultGroups({ groups }: { groups: unknown[] }) {
               </div>
             </div>
           );
-        });
-      })}
-    </div>
+        })}
+      </div>
+    </details>
   );
 }
 
