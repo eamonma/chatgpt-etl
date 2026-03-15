@@ -151,36 +151,51 @@ export function processCitationsSegmented(
       return ref?.alt ?? "";
     });
 
-    // 2. Replace tether citations with footnote references
-    seg.content = seg.content.replace(TETHER_PATTERN, (match) => {
-      const ref = refMap.get(match);
-      if (ref) {
-        const r = ref as unknown as {
-          title?: string;
-          url?: string;
-          type?: string;
-          clicked_from_url?: string;
-          clicked_from_title?: string;
-          asset_pointer_links?: string[];
-        };
-        const title = r.title || r.clicked_from_title || "";
-        const url = r.url || r.clicked_from_url || "";
-        if (title || url) {
-          let idx = footnotes.findIndex((f) => f.url === url);
-          if (idx === -1) {
-            idx = footnotes.length;
-            const screenshotPointer = r.asset_pointer_links?.[0];
-            footnotes.push({
-              title: title || url,
-              url,
-              screenshotPointer,
-            });
-          }
-          return `[${idx + 1}]`;
+    // 2. Split tether citations into citation segments
+    {
+      const tParts: Segment[] = [];
+      let tLastIdx = 0;
+      for (const tMatch of seg.content.matchAll(TETHER_PATTERN)) {
+        const tStart = tMatch.index;
+        const tEnd = tStart + tMatch[0].length;
+        if (tStart > tLastIdx) {
+          tParts.push({ type: "text", content: seg.content.slice(tLastIdx, tStart) });
         }
+        const ref = refMap.get(tMatch[0]);
+        if (ref) {
+          const r = ref as unknown as {
+            title?: string;
+            url?: string;
+            clicked_from_url?: string;
+            clicked_from_title?: string;
+            asset_pointer_links?: string[];
+          };
+          const title = r.title || r.clicked_from_title || "";
+          const url = r.url || r.clicked_from_url || "";
+          if (title || url) {
+            let idx = footnotes.findIndex((f) => f.url === url);
+            if (idx === -1) {
+              idx = footnotes.length;
+              footnotes.push({
+                title: title || url,
+                url,
+                screenshotPointer: r.asset_pointer_links?.[0],
+              });
+            }
+            tParts.push({ type: "citation", footnoteIndices: [idx] });
+          }
+        }
+        tLastIdx = tEnd;
       }
-      return "";
-    });
+      if (tParts.length > 0) {
+        if (tLastIdx < seg.content.length) {
+          tParts.push({ type: "text", content: seg.content.slice(tLastIdx) });
+        }
+        segments.splice(i, 1, ...tParts);
+        i += tParts.length - 1;
+        continue; // skip file ref splitting for this iteration — new segments will be visited
+      }
+    }
 
     // 3. Split file refs into separate segments (must be last — modifies array)
     const parts: Segment[] = [];
