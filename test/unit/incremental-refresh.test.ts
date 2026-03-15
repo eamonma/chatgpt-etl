@@ -192,4 +192,42 @@ describe("classifyPage", () => {
     expect(result.conversations[0].status).toBe("unchanged");
     expect(result.allUnchanged).toBe(true);
   });
+
+  it("treats ISO timestamp strings as unchanged when values match exactly", () => {
+    const page: ConversationSummary[] = [
+      {
+        id: "a",
+        title: "Conv A",
+        create_time: "2025-02-01T00:00:00.000Z",
+        update_time: "2025-02-01T12:34:56.789Z",
+      },
+    ];
+    const lookup: StoredConversationLookup = (id) => {
+      if (id === "a") return "2025-02-01T12:34:56.789Z";
+      return null;
+    };
+
+    const result = classifyPage(page, lookup);
+    expect(result.conversations[0].status).toBe("unchanged");
+    expect(result.allUnchanged).toBe(true);
+  });
+
+  it("marks ISO timestamp strings as updated when values differ", () => {
+    const page: ConversationSummary[] = [
+      {
+        id: "a",
+        title: "Conv A",
+        create_time: "2025-02-01T00:00:00.000Z",
+        update_time: "2025-02-01T12:34:56.790Z",
+      },
+    ];
+    const lookup: StoredConversationLookup = (id) => {
+      if (id === "a") return "2025-02-01T12:34:56.789Z";
+      return null;
+    };
+
+    const result = classifyPage(page, lookup);
+    expect(result.conversations[0].status).toBe("updated");
+    expect(result.allUnchanged).toBe(false);
+  });
 });
