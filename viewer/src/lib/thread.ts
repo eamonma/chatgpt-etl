@@ -119,9 +119,13 @@ export function filterVisibleMessages(thread: ThreadNode[]): ThreadNode[] {
     if (msg == null) return false;
     if (msg.author.role === "system") return false;
     if (msg.metadata?.is_visually_hidden_from_conversation) return false;
-    // Commentary from non-assistant roles is internal; assistant commentary
-    // is "thinking aloud" preamble text shown in ChatGPT's UI.
-    if (msg.channel === "commentary" && msg.author.role !== "assistant") return false;
+    // Commentary from non-assistant roles is generally internal, EXCEPT
+    // tool multimodal_text which contains generated images (DALL-E etc.)
+    if (msg.channel === "commentary" && msg.author.role !== "assistant") {
+      if (!(msg.author.role === "tool" && msg.content.content_type === "multimodal_text")) {
+        return false;
+      }
+    }
     if (msg.content.content_type === "user_editable_context") return false;
     if (msg.content.content_type === "model_editable_context") return false;
     return true;

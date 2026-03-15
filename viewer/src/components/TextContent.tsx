@@ -1,8 +1,7 @@
 import { useMemo } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import type { MessageContent } from "../lib/thread";
 import { processCitations } from "../lib/citations";
+import { MessageResponse } from "./ai-elements/message";
 
 export function TextContent({
   content,
@@ -24,48 +23,14 @@ export function TextContent({
 
   return (
     <div>
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={{
-          pre: ({ children }) => <>{children}</>,
-          code: ({ className, children, ...props }) => {
-            const isBlock = className?.startsWith("language-");
-            if (isBlock) {
-              const lang = className?.replace("language-", "") ?? "";
-              return (
-                <div className="my-2 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-                  <div className="flex items-center justify-between px-4 py-2 bg-gray-800 text-gray-300 text-xs">
-                    <span>{lang}</span>
-                    <button
-                      onClick={() => navigator.clipboard.writeText(String(children))}
-                      className="hover:text-white transition-colors"
-                    >
-                      Copy
-                    </button>
-                  </div>
-                  <pre className="p-4 bg-gray-900 text-gray-100 text-sm overflow-x-auto">
-                    <code>{children}</code>
-                  </pre>
-                </div>
-              );
-            }
-            return (
-              <code className="bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded text-sm" {...props}>
-                {children}
-              </code>
-            );
-          },
-        }}
-      >
-        {text}
-      </ReactMarkdown>
+      <MessageResponse>{text}</MessageResponse>
 
       {footnotes.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-          <div className="text-xs text-gray-400 dark:text-gray-500 space-y-1">
+        <div className="mt-3 pt-3 border-t border-border">
+          <div className="text-xs text-muted-foreground space-y-1">
             {footnotes.map((fn, i) => (
               <div key={i} className="flex gap-1.5">
-                <span className="text-gray-500 dark:text-gray-400 shrink-0">[{i + 1}]</span>
+                <span className="shrink-0">[{i + 1}]</span>
                 <span>
                   <a
                     href={fn.url}
@@ -76,7 +41,7 @@ export function TextContent({
                     {fn.title}
                   </a>
                   {fn.attribution && (
-                    <span className="text-gray-400"> — {fn.attribution}</span>
+                    <span className="text-muted-foreground"> — {fn.attribution}</span>
                   )}
                 </span>
               </div>

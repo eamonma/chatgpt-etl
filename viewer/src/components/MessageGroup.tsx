@@ -1,7 +1,26 @@
-import { useState } from "react";
+import type { BundledLanguage } from "shiki";
 import type { MessageGroup as MessageGroupType, ThreadNode } from "../lib/thread";
 import { ContentRenderer } from "./ContentRenderer";
 import { BranchSwitcher } from "./BranchSwitcher";
+import {
+  CodeBlock,
+  CodeBlockHeader,
+  CodeBlockTitle,
+  CodeBlockActions,
+  CodeBlockCopyButton,
+} from "./ai-elements/code-block";
+import {
+  Message,
+  MessageContent,
+} from "./ai-elements/message";
+import {
+  Reasoning,
+  ReasoningTrigger,
+  useReasoning,
+} from "./ai-elements/reasoning";
+import { ChevronDownIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { CollapsibleContent } from "@/components/ui/collapsible";
 
 function formatTimestamp(ts: number | null): string {
   if (ts == null) return "";
@@ -30,31 +49,27 @@ export function MessageGroup({
     const tn = group.messages[0];
 
     return (
-      <div className="flex justify-end">
-        <div className="max-w-[85%] md:max-w-[70%]">
-          <div className="bg-gray-100 dark:bg-gray-700 rounded-2xl px-4 py-3">
-            <div className="text-sm">
-              <ContentRenderer
-                content={msg.content}
-                conversationId={conversationId}
-                contentReferences={msg.metadata?.content_references as unknown[] | undefined}
-              />
-            </div>
-          </div>
-          <div className="flex items-center justify-end gap-2 mt-1">
-            {msg.create_time && (
-              <span className="text-xs text-gray-400 dark:text-gray-500">
-                {formatTimestamp(msg.create_time)}
-              </span>
-            )}
-            <BranchSwitcher
-              activeIndex={tn.activeChildIndex}
-              totalChildren={tn.totalChildren}
-              onSwitch={(idx) => onSwitchBranch(tn.node.id, idx)}
-            />
-          </div>
+      <Message from="user">
+        <MessageContent>
+          <ContentRenderer
+            content={msg.content}
+            conversationId={conversationId}
+            contentReferences={msg.metadata?.content_references as unknown[] | undefined}
+          />
+        </MessageContent>
+        <div className="flex items-center justify-end gap-2">
+          {msg.create_time && (
+            <span className="text-xs text-muted-foreground">
+              {formatTimestamp(msg.create_time)}
+            </span>
+          )}
+          <BranchSwitcher
+            activeIndex={tn.activeChildIndex}
+            totalChildren={tn.totalChildren}
+            onSwitch={(idx) => onSwitchBranch(tn.node.id, idx)}
+          />
         </div>
-      </div>
+      </Message>
     );
   }
 
@@ -75,11 +90,16 @@ export function MessageGroup({
 
     // Output = assistant text/multimodal visible to user, NOT commentary
     // Commentary text is "thinking aloud" preamble — goes in process block
-    const isOutput =
+    // Tool multimodal results (e.g. DALL-E images) are also treated as output
+    const isAssistantOutput =
       msg.author.role === "assistant" &&
       (ct === "text" || ct === "multimodal_text") &&
       (msg.recipient ?? "all") === "all" &&
       msg.channel !== "commentary";
+    const isToolImageOutput =
+      msg.author.role === "tool" &&
+      ct === "multimodal_text";
+    const isOutput = isAssistantOutput || isToolImageOutput;
 
     if (isOutput) {
       if (currentProcess.length > 0) {
@@ -101,30 +121,24 @@ export function MessageGroup({
   const timestamp = firstAssistant?.node.message?.create_time ?? null;
 
   return (
-    <div className="flex gap-3">
-      {/* Avatar */}
-      <div className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold mt-0.5 bg-emerald-600 text-white">
-        G
+    <Message from="assistant">
+      {/* Header */}
+      <div className="flex items-baseline gap-2">
+        <span className="text-sm font-semibold">ChatGPT</span>
+        {modelSlug && (
+          <span className="text-xs text-muted-foreground font-mono">
+            {modelSlug}
+          </span>
+        )}
+        {timestamp && (
+          <span className="text-xs text-muted-foreground">
+            {formatTimestamp(timestamp)}
+          </span>
+        )}
       </div>
 
-      {/* Content */}
-      <div className="flex-1 min-w-0">
-        {/* Header */}
-        <div className="flex items-baseline gap-2 mb-1">
-          <span className="text-sm font-semibold">ChatGPT</span>
-          {modelSlug && (
-            <span className="text-xs text-gray-400 dark:text-gray-500 font-mono">
-              {modelSlug}
-            </span>
-          )}
-          {timestamp && (
-            <span className="text-xs text-gray-400 dark:text-gray-500">
-              {formatTimestamp(timestamp)}
-            </span>
-          )}
-        </div>
-
-        <div className="text-sm leading-relaxed space-y-2">
+      <MessageContent>
+        <div className="space-y-2">
           {segments.map((seg, i) => {
             if (seg.type === "process") {
               return <ProcessBlock key={i} messages={seg.messages} conversationId={conversationId} />;
@@ -140,8 +154,8 @@ export function MessageGroup({
             );
           })}
         </div>
-      </div>
-    </div>
+      </MessageContent>
+    </Message>
   );
 }
 
@@ -187,6 +201,21 @@ function buildSearchIndex(messages: ThreadNode[]): Map<string, SearchResult> {
   return index;
 }
 
+function ProcessBlockTriggerContent({ label }: { label: string }) {
+  const { isOpen } = useReasoning();
+  return (
+    <>
+      <span>{label}</span>
+      <ChevronDownIcon
+        className={cn(
+          "size-4 transition-transform",
+          isOpen ? "rotate-180" : "rotate-0"
+        )}
+      />
+    </>
+  );
+}
+
 /**
  * Collapsible block showing the assistant's "thinking process":
  * thoughts, tool calls, tool results, reasoning recaps — all interleaved.
@@ -198,8 +227,6 @@ function ProcessBlock({
   messages: ThreadNode[];
   conversationId: string;
 }) {
-  const [expanded, setExpanded] = useState(false);
-
   // Build search result index from all tool messages' metadata
   const searchIndex = buildSearchIndex(messages);
 
@@ -222,25 +249,11 @@ function ProcessBlock({
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-500 dark:text-gray-400
-          hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left"
-      >
-        <svg
-          className={`w-3 h-3 transition-transform shrink-0 ${expanded ? "rotate-90" : ""}`}
-          fill="currentColor" viewBox="0 0 20 20"
-        >
-          <path d="M6 4l8 6-8 6V4z" />
-        </svg>
-        <span className="font-medium">{label}</span>
-      </button>
-
-      {expanded && (
-        <div className="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50
-          px-4 py-3 space-y-3 text-sm text-gray-600 dark:text-gray-400">
+    <Reasoning defaultOpen={false}>
+      <ReasoningTrigger>
+        <ProcessBlockTriggerContent label={label} />
+      </ReasoningTrigger>
+      <CollapsibleContent className="mt-2 space-y-3 text-sm text-muted-foreground data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 data-[state=closed]:animate-out data-[state=open]:animate-in">
           {messages.map((tn) => {
             const msg = tn.node.message!;
             const ct = msg.content.content_type;
@@ -255,7 +268,7 @@ function ProcessBlock({
                 <div key={tn.node.id} className="space-y-2">
                   {thoughts.map((t, i) => (
                     <div key={i} className="whitespace-pre-wrap leading-relaxed">
-                      {t.summary && <span className="font-medium text-gray-700 dark:text-gray-300">{t.summary}: </span>}
+                      {t.summary && <span className="font-medium">{t.summary}: </span>}
                       {t.content}
                     </div>
                   ))}
@@ -316,7 +329,7 @@ function ProcessBlock({
             if (ct === "reasoning_recap") {
               const rc = msg.content as unknown as Record<string, unknown>;
               return (
-                <div key={tn.node.id} className="italic text-gray-500 dark:text-gray-400 border-l-2 border-purple-400 pl-3">
+                <div key={tn.node.id} className="italic border-l-2 border-purple-400 pl-3">
                   {String(rc.content ?? "")}
                 </div>
               );
@@ -331,9 +344,8 @@ function ProcessBlock({
               />
             );
           })}
-        </div>
-      )}
-    </div>
+      </CollapsibleContent>
+    </Reasoning>
   );
 }
 
@@ -394,9 +406,14 @@ function ToolCallDisplay({ raw, language: _language, searchIndex }: { raw: strin
 
   if (!parsed) {
     return (
-      <div className="font-mono text-xs bg-gray-100 dark:bg-gray-800 rounded p-2 overflow-x-auto whitespace-pre-wrap">
-        {raw}
-      </div>
+      <CodeBlock code={raw} language={"text" as BundledLanguage}>
+        <CodeBlockHeader>
+          <CodeBlockTitle>code</CodeBlockTitle>
+          <CodeBlockActions>
+            <CodeBlockCopyButton />
+          </CodeBlockActions>
+        </CodeBlockHeader>
+      </CodeBlock>
     );
   }
 
@@ -484,10 +501,16 @@ function ToolCallDisplay({ raw, language: _language, searchIndex }: { raw: strin
 
   // Python code execution
   if (parsed.jupyter_messages || parsed.code) {
+    const codeText = String(parsed.code ?? raw);
     return (
-      <pre className="text-xs bg-gray-100 dark:bg-gray-800 rounded p-2 overflow-x-auto whitespace-pre-wrap font-mono">
-        {String(parsed.code ?? raw)}
-      </pre>
+      <CodeBlock code={codeText} language={"python" as BundledLanguage}>
+        <CodeBlockHeader>
+          <CodeBlockTitle>python</CodeBlockTitle>
+          <CodeBlockActions>
+            <CodeBlockCopyButton />
+          </CodeBlockActions>
+        </CodeBlockHeader>
+      </CodeBlock>
     );
   }
 
