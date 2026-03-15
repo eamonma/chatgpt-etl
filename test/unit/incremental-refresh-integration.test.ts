@@ -78,6 +78,25 @@ describe("buildLookupFromDisk", () => {
 
     expect(lookup("anything")).toBeNull();
   });
+
+  it("returns update_time from files that use conversation_id field (real API format)", async () => {
+    // The real ChatGPT API returns conversation_id, not id.
+    // buildLookupFromDisk must use the filename as the key, not data.id.
+    const dir = join(outputDir, "conversations");
+    await mkdir(dir, { recursive: true });
+    const data = {
+      conversation_id: "conv-real",
+      title: "Real Conv",
+      update_time: 1700000999,
+      create_time: 1700000000,
+      mapping: {},
+    };
+    await writeFile(join(dir, "conv-real.json"), JSON.stringify(data));
+
+    const lookup = await buildLookupFromDisk(outputDir);
+
+    expect(lookup("conv-real")).toBe(1700000999);
+  });
 });
 
 describe("listNewAndUpdatedConversations", () => {
