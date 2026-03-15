@@ -43,6 +43,12 @@ const IMAGE_PATTERN = /\ue200i\ue202[^\ue201]+(\ue201|$)/g;
 // Catch-all: any remaining \ue200...\ue201 markers (or unclosed at end)
 const GENERIC_MARKER = /\ue200[^\ue201]+(\ue201|$)/g;
 
+// File references: {{file:file-XXXX}}
+const FILE_REF_PATTERN = /\{\{file:(file-[a-zA-Z0-9]+)\}\}/g;
+
+// Tether citations: 【123456†L10-L20】 or 【123456†screenshot】
+const TETHER_PATTERN = /\u3010[^\u3011]+\u3011/g;
+
 /**
  * Build a map from matched_text to citation data for quick lookup.
  */
@@ -129,13 +135,31 @@ export function processCitationsSegmented(
     segments.push({ type: "text", content: entityProcessed });
   }
 
-  // Clean remaining unknown markers from text segments (navlist, etc.)
+  // Clean remaining unknown markers and file refs from text segments
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i];
     if (seg.type === "text") {
       seg.content = seg.content.replace(GENERIC_MARKER, (match) => {
         const ref = refMap.get(match);
         return ref?.alt ?? "";
+      });
+      seg.content = seg.content.replace(FILE_REF_PATTERN, (_match, fileId: string) => {
+        return `[Attached file: ${fileId}]`;
+      });
+      seg.content = seg.content.replace(TETHER_PATTERN, (match) => {
+        const ref = refMap.get(match);
+        if (ref) {
+          const r = ref as unknown as { title?: string; url?: string };
+          if (r.title && r.url) {
+            let idx = footnotes.findIndex((f) => f.url === r.url);
+            if (idx === -1) {
+              idx = footnotes.length;
+              footnotes.push({ title: r.title!, url: r.url! });
+            }
+            return `[${idx + 1}]`;
+          }
+        }
+        return "";
       });
     }
   }
@@ -190,6 +214,28 @@ export function processCitations(
   processed = processed.replace(GENERIC_MARKER, (match) => {
     const ref = refMap.get(match);
     return ref?.alt ?? "";
+  });
+
+  // Replace {{file:file-XXX}} references with a readable label
+  processed = processed.replace(FILE_REF_PATTERN, (_match, fileId: string) => {
+    return `[Attached file: ${fileId}]`;
+  });
+
+  // Replace tether citations 【...†...】 with footnote references
+  processed = processed.replace(TETHER_PATTERN, (match) => {
+    const ref = refMap.get(match);
+    if (ref) {
+      const r = ref as unknown as { title?: string; url?: string };
+      if (r.title && r.url) {
+        let idx = footnotes.findIndex((f) => f.url === r.url);
+        if (idx === -1) {
+          idx = footnotes.length;
+          footnotes.push({ title: r.title!, url: r.url! });
+        }
+        return `[${idx + 1}]`;
+      }
+    }
+    return "";
   });
 
   return { text: processed, footnotes };
