@@ -721,18 +721,18 @@ describe("orchestrator", () => {
     }
 
     it("refreshList only fetches new and updated conversations, not unchanged ones", async () => {
-      // Setup: manifest has conv-1 and conv-2 as complete
+      // Setup: manifest has conv-1 and conv-2 as complete with updateTime
       const existingManifest: ExportManifest = {
         version: 1,
         exportedAt: "2025-01-01T00:00:00.000Z",
         conversations: {
-          "conv-1": { id: "conv-1", title: "First", status: "complete", assetCount: 0 },
-          "conv-2": { id: "conv-2", title: "Second", status: "complete", assetCount: 0 },
+          "conv-1": { id: "conv-1", title: "First", status: "complete", assetCount: 0, updateTime: 2000 },
+          "conv-2": { id: "conv-2", title: "Second", status: "complete", assetCount: 0, updateTime: 2000 },
         },
       };
       await saveManifest(tmpDir, existingManifest);
 
-      // Write conversation files to disk with known update_times
+      // Write conversation files to disk (still needed for writeConversation)
       await writeConvFile(tmpDir, "conv-1", 2000); // unchanged
       await writeConvFile(tmpDir, "conv-2", 2000); // will be updated (API says 3000)
 
@@ -795,6 +795,7 @@ describe("orchestrator", () => {
           title: `Old ${i}`,
           status: "complete",
           assetCount: 0,
+          updateTime: 1000 + i,
         };
         await writeConvFile(tmpDir, id, 1000 + i);
       }
