@@ -1,6 +1,6 @@
 import type { BundledLanguage } from "shiki";
 import type { MessageGroup as MessageGroupType, ThreadNode } from "../lib/thread";
-import { getModelDisplayName } from "../lib/models";
+import { getModelDisplayName, isThinkingModel, formatThinkingEffort } from "../lib/models";
 import { ContentRenderer } from "./ContentRenderer";
 import { BranchSwitcher } from "./BranchSwitcher";
 import {
@@ -118,16 +118,24 @@ export function MessageGroup({
 
   // Get model slug and timestamp from first assistant message
   const firstAssistant = group.messages.find((tn) => tn.node.message?.author.role === "assistant");
-  const modelSlug = firstAssistant?.node.message?.metadata?.model_slug as string | undefined;
+  const meta = firstAssistant?.node.message?.metadata ?? {};
+  const modelSlug = meta.model_slug as string | undefined;
   const timestamp = firstAssistant?.node.message?.create_time ?? null;
+  const thinkingEffort = meta.thinking_effort as string | undefined;
+  const thinking = modelSlug ? isThinkingModel(modelSlug) : false;
 
   return (
     <Message from="assistant">
       {/* Header */}
-      <div className="flex items-baseline gap-2">
+      <div className="flex items-baseline gap-2 flex-wrap">
         <span className="text-sm font-semibold">
           {modelSlug ? getModelDisplayName(modelSlug) : "ChatGPT"}
         </span>
+        {thinking && (
+          <span className="text-xs text-muted-foreground">
+            Thinking{thinkingEffort ? ` · ${formatThinkingEffort(thinkingEffort)}` : ""}
+          </span>
+        )}
         {timestamp && (
           <span className="text-xs text-muted-foreground">
             {formatTimestamp(timestamp)}
