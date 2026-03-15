@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ConversationList } from "./components/ConversationList";
+import { ConversationView } from "./components/ConversationView";
 
 export function App() {
   const [selectedConversationId, setSelectedConversationId] = useState<
@@ -38,9 +39,10 @@ export function App() {
         {selectedConversationId == null ? (
           <ConversationList onSelect={setSelectedConversationId} />
         ) : (
-          <div style={{ padding: 24 }}>
-            <p>Conversation: {selectedConversationId}</p>
-          </div>
+          <ConversationView
+            conversationId={selectedConversationId}
+            onBack={() => setSelectedConversationId(null)}
+          />
         )}
       </main>
     </div>
