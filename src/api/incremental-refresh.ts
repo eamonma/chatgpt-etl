@@ -82,11 +82,12 @@ export async function buildLookupFromDisk(
 
   for (const file of files) {
     if (!file.endsWith(".json")) continue;
+    const conversationId = file.slice(0, -5); // strip ".json" to get the conversation ID
     try {
       const raw = await readFile(join(convDir, file), "utf8");
       const data = JSON.parse(raw);
-      if (data.id && data.update_time != null) {
-        cache.set(data.id, Number(data.update_time));
+      if (data.update_time != null) {
+        cache.set(conversationId, Number(data.update_time));
       }
     } catch {
       // Skip unreadable files
