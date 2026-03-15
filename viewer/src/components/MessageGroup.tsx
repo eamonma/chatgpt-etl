@@ -119,6 +119,48 @@ export function MessageGroup({
   );
 }
 
+/** A resolved search result for the ref index. */
+interface SearchResult {
+  title: string;
+  url: string;
+  snippet?: string;
+  domain?: string;
+  attribution?: string;
+  pub_date?: string | null;
+}
+
+/** Build lookup: "turn0search3" -> SearchResult from search_result_groups metadata. */
+function buildSearchIndex(messages: ThreadNode[]): Map<string, SearchResult> {
+  const index = new Map<string, SearchResult>();
+  for (const tn of messages) {
+    const meta = tn.node.message?.metadata;
+    if (!meta) continue;
+    const groups = meta.search_result_groups as unknown[];
+    if (!Array.isArray(groups)) continue;
+    for (const group of groups) {
+      const g = group as Record<string, unknown>;
+      const domain = g.domain as string | undefined;
+      const entries = g.entries as Record<string, unknown>[] | undefined;
+      if (!entries) continue;
+      for (const entry of entries) {
+        const refId = entry.ref_id as { turn_index: number; ref_type: string; ref_index: number } | undefined;
+        if (refId) {
+          const key = `turn${refId.turn_index}${refId.ref_type}${refId.ref_index}`;
+          index.set(key, {
+            title: String(entry.title ?? ""),
+            url: String(entry.url ?? ""),
+            snippet: entry.snippet as string | undefined,
+            domain,
+            attribution: entry.attribution as string | undefined,
+            pub_date: entry.pub_date as string | null | undefined,
+          });
+        }
+      }
+    }
+  }
+  return index;
+}
+
 /**
  * Collapsible block showing the assistant's "thinking process":
  * thoughts, tool calls, tool results, reasoning recaps — all interleaved.
@@ -131,6 +173,9 @@ function ProcessBlock({
   conversationId: string;
 }) {
   const [expanded, setExpanded] = useState(false);
+
+  // Build search result index from all tool messages' metadata
+  const searchIndex = buildSearchIndex(messages);
 
   // Build a summary label
   const toolNames = [...new Set(
@@ -196,12 +241,19 @@ function ProcessBlock({
             if (role === "assistant" && ct === "code") {
               const toolContent = msg.content as unknown as Record<string, unknown>;
               const raw = String(toolContent.text ?? "");
-              return <ToolCallDisplay key={tn.node.id} raw={raw} language={String(toolContent.language ?? "")} />;
+              return <ToolCallDisplay key={tn.node.id} raw={raw} language={String(toolContent.language ?? "")} searchIndex={searchIndex} />;
             }
 
-            // Tool results
+            // Tool results — render search_result_groups if present, otherwise raw text
             if (role === "tool") {
               const toolName = msg.author.name;
+              const srg = msg.metadata?.search_result_groups as unknown[] | undefined;
+
+              // If we have search_result_groups, render them as nice cards
+              if (srg && Array.isArray(srg) && srg.length > 0) {
+                return <SearchResultGroups key={tn.node.id} groups={srg} />;
+              }
+
               const text = (msg.content.parts ?? [])
                 .filter((p): p is string => typeof p === "string")
                 .join("\n");
@@ -245,8 +297,45 @@ function ProcessBlock({
   );
 }
 
+/** Renders search result groups as compact cards. */
+function SearchResultGroups({ groups }: { groups: unknown[] }) {
+  return (
+    <div className="space-y-1">
+      {(groups as Record<string, unknown>[]).map((group, gi) => {
+        const entries = (group.entries ?? []) as Record<string, unknown>[];
+        return entries.map((entry, ei) => {
+          const refId = entry.ref_id as { turn_index: number; ref_type: string; ref_index: number } | undefined;
+          const refKey = refId ? `turn${refId.turn_index}${refId.ref_type}${refId.ref_index}` : null;
+          return (
+            <div key={`${gi}-${ei}`} className="flex gap-2 text-xs py-1">
+              {refKey && (
+                <span className="shrink-0 font-mono text-gray-400 dark:text-gray-500 w-24 truncate" title={refKey}>
+                  {refKey}
+                </span>
+              )}
+              <div className="min-w-0">
+                <div className="font-medium text-gray-700 dark:text-gray-300 truncate">
+                  {String(entry.title ?? "")}
+                </div>
+                <div className="text-gray-400 dark:text-gray-500 truncate">
+                  {String(entry.url ?? "")}
+                </div>
+                {entry.snippet && (
+                  <div className="text-gray-500 dark:text-gray-400 line-clamp-2 mt-0.5">
+                    {String(entry.snippet)}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        });
+      })}
+    </div>
+  );
+}
+
 /** Renders a tool call (code sent to a tool), parsing JSON nicely when possible. */
-function ToolCallDisplay({ raw, language: _language }: { raw: string; language: string }) {
+function ToolCallDisplay({ raw, language: _language, searchIndex }: { raw: string; language: string; searchIndex: Map<string, SearchResult> }) {
   let parsed: Record<string, unknown> | null = null;
   try {
     parsed = JSON.parse(raw);
@@ -317,12 +406,28 @@ function ToolCallDisplay({ raw, language: _language }: { raw: string; language: 
           ))}
         </div>
         <div className="divide-y divide-gray-100 dark:divide-gray-800">
-          {refs.map((ref, i) => (
-            <div key={i} className="px-3 py-1.5 text-xs font-mono text-gray-600 dark:text-gray-400">
-              {ref.ref_id}
-              {ref.lineno != null && <span className="text-gray-400 ml-2">line {ref.lineno}</span>}
-            </div>
-          ))}
+          {refs.map((ref, i) => {
+            const resolved = searchIndex.get(ref.ref_id);
+            return (
+              <div key={i} className="px-3 py-2 text-xs">
+                {resolved ? (
+                  <div>
+                    <div className="font-medium text-gray-700 dark:text-gray-300">
+                      {resolved.title}
+                    </div>
+                    <div className="text-gray-400 dark:text-gray-500 truncate mt-0.5">
+                      {resolved.domain ?? resolved.url}
+                    </div>
+                  </div>
+                ) : (
+                  <span className="font-mono text-gray-600 dark:text-gray-400">
+                    {ref.ref_id}
+                    {ref.lineno != null && <span className="text-gray-400 ml-2">line {ref.lineno}</span>}
+                  </span>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     );
