@@ -5,10 +5,10 @@ import type { ConversationSummary } from "../types.js";
 import { buildConversationListUrl, buildHeaders, parseConversationList } from "./endpoints.js";
 
 /**
- * Given a conversation ID, returns the stored update_time (as a number),
+ * Given a conversation ID, returns the stored update_time,
  * or null if the conversation isn't on disk.
  */
-export type StoredConversationLookup = (id: string) => number | null;
+export type StoredConversationLookup = (id: string) => string | number | null;
 
 export interface ClassifiedConversation {
   id: string;
@@ -42,13 +42,12 @@ export function classifyPage(
 
   for (const conv of page) {
     const storedUpdateTime = lookup(conv.id);
-    const apiUpdateTime = Number(conv.update_time);
 
     let status: ClassifiedConversation["status"];
     if (storedUpdateTime === null) {
       status = "new";
       allUnchanged = false;
-    } else if (Math.floor(storedUpdateTime) === Math.floor(apiUpdateTime)) {
+    } else if (matchesUpdateTime(storedUpdateTime, conv.update_time)) {
       status = "unchanged";
     } else {
       status = "updated";
@@ -61,6 +60,19 @@ export function classifyPage(
   return { conversations, allUnchanged };
 }
 
+function matchesUpdateTime(stored: string | number, api: string | number): boolean {
+  const storedNum = Number(stored);
+  const apiNum = Number(api);
+
+  // Numeric timestamps can have tiny fractional differences between endpoints.
+  if (Number.isFinite(storedNum) && Number.isFinite(apiNum)) {
+    return Math.floor(storedNum) === Math.floor(apiNum);
+  }
+
+  // Some exports may store ISO timestamp strings. Compare raw values in that case.
+  return String(stored) === String(api);
+}
+
 /**
  * Build a lookup function that reads update_time from saved conversation
  * JSON files on disk. Scans the conversations/ directory once and caches
@@ -70,7 +82,7 @@ export async function buildLookupFromDisk(
   outputDir: string,
 ): Promise<StoredConversationLookup> {
   const convDir = join(outputDir, "conversations");
-  const cache = new Map<string, number>();
+  const cache = new Map<string, string | number>();
 
   let files: string[];
   try {
@@ -86,7 +98,7 @@ export async function buildLookupFromDisk(
       const raw = await readFile(join(convDir, file), "utf8");
       const data = JSON.parse(raw);
       if (data.id && data.update_time != null) {
-        cache.set(data.id, Number(data.update_time));
+        cache.set(data.id, data.update_time);
       }
     } catch {
       // Skip unreadable files
