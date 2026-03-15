@@ -8,6 +8,7 @@ export interface FetchResponse {
   status: number;
   headers: Record<string, string>;
   body: string;
+  bodyBuffer?: Buffer;
 }
 
 export interface ChatGptClient {

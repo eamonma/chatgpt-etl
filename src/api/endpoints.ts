@@ -87,20 +87,20 @@ export function extractAssetReferences(
 
 export interface FileDownloadResult {
   download_url: string;
-  file_name: string;
+  file_name: string | null;
   status: string;
   metadata: unknown;
 }
 
 export function parseFileDownload(response: {
   download_url: string;
-  file_name: string;
+  file_name?: string | null;
   status: string;
   metadata: unknown;
 }): FileDownloadResult {
   return {
     download_url: response.download_url,
-    file_name: response.file_name,
+    file_name: response.file_name ?? null,
     status: response.status,
     metadata: response.metadata,
   };

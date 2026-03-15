@@ -1,5 +1,14 @@
-export function generateBrowserScript(port: number): string {
-  return `(function() {
+function minify(js: string): string {
+  return js
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .join(" ")
+    .replace(/\s{2,}/g, " ");
+}
+
+export function generateBrowserScript(port: number, { compact = false }: { compact?: boolean } = {}): string {
+  const script = `(function() {
   var accessToken = null;
 
   function getToken() {
@@ -45,8 +54,14 @@ export function generateBrowserScript(port: number): string {
         response.headers.forEach(function(value, key) {
           respHeaders[key] = value;
         });
-        return response.text().then(function(body) {
-          return { status: response.status, headers: respHeaders, body: body };
+        return response.arrayBuffer().then(function(buf) {
+          var bytes = new Uint8Array(buf);
+          var binary = "";
+          for (var i = 0; i < bytes.length; i++) {
+            binary += String.fromCharCode(bytes[i]);
+          }
+          var body = btoa(binary);
+          return { status: response.status, headers: respHeaders, body: body, bodyBase64: true };
         });
       })
       .then(function(result) {
@@ -71,4 +86,5 @@ export function generateBrowserScript(port: number): string {
     console.error("[chatgpt-etl] Failed to get access token:", err);
   });
 })();`;
+  return compact ? minify(script) : script;
 }

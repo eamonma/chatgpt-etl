@@ -345,7 +345,7 @@ describe("integration: full export pipeline", () => {
     // conv-b SHOULD have been re-fetched (was set back to pending)
     expect(client.getCallCount(/backend-api\/conversation\/conv-b$/)).toBe(1);
 
-    // The list endpoint should still be called (to discover conversations)
-    expect(client.getCallCount(/backend-api\/conversations\?/)).toBeGreaterThan(0);
+    // The list endpoint should NOT be called (manifest already has conversations)
+    expect(client.getCallCount(/backend-api\/conversations\?/)).toBe(0);
   });
 });

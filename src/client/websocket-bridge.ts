@@ -48,7 +48,7 @@ export class WebSocketBridge implements ChatGptClient {
 
   private setupClientHandlers(ws: WebSocket): void {
     ws.on("message", (data) => {
-      let msg: { id: number; response: FetchResponse };
+      let msg: { id: number; response: FetchResponse & { bodyBase64?: boolean } };
       try {
         msg = JSON.parse(data.toString());
       } catch {
@@ -60,7 +60,15 @@ export class WebSocketBridge implements ChatGptClient {
       if (pending) {
         if (pending.timer) clearTimeout(pending.timer);
         this.pending.delete(msg.id);
-        pending.resolve(msg.response);
+        // Decode base64 body if flagged by browser script
+        const response = msg.response;
+        if (response.bodyBase64) {
+          const buf = Buffer.from(response.body, "base64");
+          response.body = buf.toString("utf-8");
+          response.bodyBuffer = buf;
+          delete response.bodyBase64;
+        }
+        pending.resolve(response);
       }
     });
 

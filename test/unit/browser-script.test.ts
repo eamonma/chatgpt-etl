@@ -42,4 +42,26 @@ describe("generateBrowserScript", () => {
     expect(script).toContain("headers");
     expect(script).toContain("body");
   });
+
+  it("compact mode produces a single line", () => {
+    const script = generateBrowserScript(8080, { compact: true });
+    const lines = script.split("\n");
+    expect(lines).toHaveLength(1);
+  });
+
+  it("compact mode produces syntactically valid JavaScript", () => {
+    const script = generateBrowserScript(8080, { compact: true });
+    expect(() => new Function(script)).not.toThrow();
+  });
+
+  it("compact mode preserves correct WebSocket URL", () => {
+    const script = generateBrowserScript(4444, { compact: true });
+    expect(script).toContain("ws://localhost:4444");
+  });
+
+  it("uses arrayBuffer and btoa for base64 encoding of response body", () => {
+    const script = generateBrowserScript(8080);
+    expect(script).toContain("arrayBuffer");
+    expect(script).toContain("btoa");
+  });
 });

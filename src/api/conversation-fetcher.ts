@@ -45,10 +45,12 @@ export async function fetchConversation(
     });
 
     const parsed = parseFileDownload(JSON.parse(downloadResponse.body));
+    // file_name can be null from the API; fall back to fileId-based name
+    const fileName = parsed.file_name || `${ref.fileId}`;
     assets.push({
       fileId: ref.fileId,
       downloadUrl: parsed.download_url,
-      fileName: parsed.file_name,
+      fileName,
     });
   }
 

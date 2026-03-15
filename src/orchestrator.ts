@@ -38,16 +38,18 @@ export async function runExport(
     conversations: {},
   };
 
-  // 2. List all conversations
-  const allConversations = await listAllConversations(client, {
-    token,
-    includeArchived: options.includeArchived,
-    includeProjects: options.includeProjects,
-  });
+  const hasExistingConversations = Object.keys(manifest.conversations).length > 0;
 
-  // 3. Initialize manifest entries for any new conversations
-  for (const conv of allConversations) {
-    if (!manifest.conversations[conv.id]) {
+  if (!hasExistingConversations || options.refreshList) {
+    // 2. First run: list conversations from the API
+    const allConversations = await listAllConversations(client, {
+      token,
+      includeArchived: options.includeArchived,
+      includeProjects: options.includeProjects,
+    });
+
+    // 3. Initialize manifest entries
+    for (const conv of allConversations) {
       manifest = markConversation(manifest, conv.id, {
         id: conv.id,
         title: conv.title,
@@ -55,11 +57,12 @@ export async function runExport(
         assetCount: 0,
       });
     }
+
+    await saveManifest(outputDir, manifest);
   }
 
   // 4. Determine which conversations to process
-  let pendingIds = allConversations
-    .map((c) => c.id)
+  let pendingIds = Object.keys(manifest.conversations)
     .filter((id) => manifest.conversations[id]?.status !== "complete");
 
   // Apply limit
@@ -104,14 +107,16 @@ export async function runExport(
             method: "GET",
             headers: {},
           });
-          await writeAsset(outputDir, id, asset.fileName, Buffer.from(assetResponse.body));
+          const assetData = assetResponse.bodyBuffer ?? Buffer.from(assetResponse.body);
+          await writeAsset(outputDir, id, asset.fileName, assetData);
         }
       }
 
-      // Mark complete
+      // Mark complete (clear any previous error)
       manifest = markConversation(manifest, id, {
         status: "complete",
         assetCount: result.assets.length,
+        error: undefined,
       });
 
       consecutiveErrors = 0;

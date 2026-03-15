@@ -16,6 +16,7 @@ interface CliArgs {
   limit?: number;
   dryRun: boolean;
   delayMs: number;
+  refreshList: boolean;
 }
 
 function parseArgs(argv: string[]): CliArgs {
@@ -29,6 +30,7 @@ function parseArgs(argv: string[]): CliArgs {
   let limit: number | undefined;
   let dryRun = false;
   let delayMs = 500;
+  let refreshList = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -67,6 +69,8 @@ function parseArgs(argv: string[]): CliArgs {
       }
     } else if (arg === "--dry-run") {
       dryRun = true;
+    } else if (arg === "--refresh-list") {
+      refreshList = true;
     } else if (arg === "--delay-ms") {
       const raw = args[++i];
       delayMs = parseInt(raw, 10);
@@ -90,7 +94,7 @@ function parseArgs(argv: string[]): CliArgs {
     process.exit(1);
   }
 
-  return { outputDir, port, includeArchived, includeProjects, includeAssets, limit, dryRun, delayMs };
+  return { outputDir, port, includeArchived, includeProjects, includeAssets, limit, dryRun, delayMs, refreshList };
 }
 
 function printHelp(): void {
@@ -108,6 +112,7 @@ Options:
   --no-include-assets       Skip asset downloads
   --limit, -l <number>      Only export first N conversations (for testing)
   --dry-run                 List conversations and save manifest, but don't download
+  --refresh-list            Re-fetch conversation list from API (even if manifest exists)
   --delay-ms <number>       Milliseconds between API requests (default: 500)
   --help, -h                Show this help message
 `);
@@ -165,21 +170,12 @@ async function main(): Promise<void> {
   console.log(`Bridge listening on ws://localhost:${args.port}`);
 
   // Print browser script instructions
-  const script = generateBrowserScript(args.port);
+  const script = generateBrowserScript(args.port, { compact: true });
 
   console.log("");
-  console.log("=".repeat(60));
-  console.log("BROWSER SCRIPT — copy everything between the dashes");
-  console.log("-".repeat(60));
+  console.log("Paste this into ChatGPT's browser console (DevTools → Console):");
+  console.log("");
   console.log(script);
-  console.log("-".repeat(60));
-  console.log("Instructions:");
-  console.log("  1. Open https://chatgpt.com in your browser");
-  console.log("  2. Open DevTools (F12 or Cmd+Option+I)");
-  console.log("  3. Go to the Console tab");
-  console.log("  4. Paste the script above and press Enter");
-  console.log(`  5. You should see: [chatgpt-etl] Connected to bridge on port ${args.port}`);
-  console.log("=".repeat(60));
   console.log("");
 
   // Wait for browser connection
@@ -239,6 +235,7 @@ async function main(): Promise<void> {
     limit: args.limit,
     dryRun: args.dryRun,
     delayMs: args.delayMs,
+    refreshList: args.refreshList,
     onProgress: (current: number, total: number, title: string) => {
       console.log(`[${current}/${total}] ${title}`);
     },

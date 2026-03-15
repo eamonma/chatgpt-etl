@@ -109,37 +109,18 @@ describe("orchestrator", () => {
   });
 
   it("resumability: given manifest with completed conversations, only fetches pending ones", async () => {
-    // Pre-save a manifest with conv-1 already complete
+    // Pre-save a manifest with conv-1 already complete, conv-2 pending
     const existingManifest: ExportManifest = {
       version: 1,
       exportedAt: "2025-01-01T00:00:00.000Z",
       conversations: {
         "conv-1": { id: "conv-1", title: "First", status: "complete", assetCount: 0 },
+        "conv-2": { id: "conv-2", title: "Second", status: "pending", assetCount: 0 },
       },
     };
     await saveManifest(tmpDir, existingManifest);
 
-    let listCallCount = 0;
     const client = new MockClient([
-      {
-        pattern: /backend-api\/conversations\?offset=\d+&limit=100&order=updated$/,
-        handler: {
-          response: () => {
-            listCallCount++;
-            if (listCallCount === 1) {
-              return {
-                status: 200,
-                headers: {},
-                body: makeListResponse([
-                  { id: "conv-1", title: "First" },
-                  { id: "conv-2", title: "Second" },
-                ]),
-              };
-            }
-            return { status: 200, headers: {}, body: emptyListResponse };
-          },
-        },
-      },
       {
         pattern: /backend-api\/conversation\/conv-2$/,
         handler: { response: { status: 200, headers: {}, body: makeDetail("conv-2", "Second") } },
@@ -152,6 +133,8 @@ describe("orchestrator", () => {
     expect(manifest.conversations["conv-1"].status).toBe("complete");
     expect(manifest.conversations["conv-2"].status).toBe("complete");
 
+    // Should NOT have listed conversations (manifest already exists)
+    expect(client.getCallCount(/backend-api\/conversations/)).toBe(0);
     // Should NOT have fetched conv-1 detail
     expect(client.getCallCount(/backend-api\/conversation\/conv-1/)).toBe(0);
     // Should have fetched conv-2 detail
@@ -431,7 +414,7 @@ describe("orchestrator", () => {
     // Only 2 conversations should have been fetched
     expect(manifest.conversations["conv-1"].status).toBe("complete");
     expect(manifest.conversations["conv-2"].status).toBe("complete");
-    // conv-3 should still be pending (in manifest from listing, but not fetched)
+    // conv-3 is in the manifest (listed) but still pending (limit reached)
     expect(manifest.conversations["conv-3"].status).toBe("pending");
 
     // Verify only 2 detail fetches happened
@@ -569,6 +552,41 @@ describe("orchestrator", () => {
     );
 
     expect(progressCalls).toEqual([[1, 1, "My Chat"]]);
+  });
+
+  it("skips listing when manifest already has conversations", async () => {
+    // Pre-save a manifest with 3 conversations, 1 complete, 2 pending
+    const existingManifest: ExportManifest = {
+      version: 1,
+      exportedAt: "2025-01-01T00:00:00.000Z",
+      conversations: {
+        "conv-1": { id: "conv-1", title: "First", status: "complete", assetCount: 0 },
+        "conv-2": { id: "conv-2", title: "Second", status: "pending", assetCount: 0 },
+        "conv-3": { id: "conv-3", title: "Third", status: "pending", assetCount: 0 },
+      },
+    };
+    await saveManifest(tmpDir, existingManifest);
+
+    // Client has detail routes but NO list routes — listing should be skipped
+    const client = new MockClient([
+      {
+        pattern: /backend-api\/conversation\/conv-2$/,
+        handler: { response: { status: 200, headers: {}, body: makeDetail("conv-2", "Second") } },
+      },
+    ]);
+
+    const manifest = await runExport(
+      client,
+      "test-token",
+      defaultOptions(tmpDir, { limit: 1 }),
+    );
+
+    // Should not have called any list endpoint
+    expect(client.getCallCount(/backend-api\/conversations/)).toBe(0);
+    // Should have fetched conv-2 (first pending)
+    expect(manifest.conversations["conv-2"].status).toBe("complete");
+    // conv-3 still pending (limit 1)
+    expect(manifest.conversations["conv-3"].status).toBe("pending");
   });
 
   it("downloads assets when includeAssets is true", async () => {

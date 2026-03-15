@@ -74,6 +74,7 @@ export interface ExportOptions {
   maxConsecutiveErrors: number;
   limit?: number;
   dryRun?: boolean;
+  refreshList?: boolean;
   delayMs?: number;
   onProgress?: (current: number, total: number, title: string) => void;
 }
