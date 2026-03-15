@@ -25,7 +25,17 @@ const MIME_TYPES: Record<string, string> = {
 
 function getMimeType(filename: string): string {
   const ext = path.extname(filename).toLowerCase();
-  return MIME_TYPES[ext] || "application/octet-stream";
+  return MIME_TYPES[ext] || "";
+}
+
+/** Detect MIME type from file magic bytes when extension is missing. */
+function detectMimeFromBytes(header: Buffer): string {
+  if (header[0] === 0x89 && header[1] === 0x50 && header[2] === 0x4e && header[3] === 0x47) return "image/png";
+  if (header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff) return "image/jpeg";
+  if (header[0] === 0x47 && header[1] === 0x49 && header[2] === 0x46) return "image/gif";
+  if (header[0] === 0x52 && header[1] === 0x49 && header[2] === 0x46 && header[3] === 0x46) return "image/webp";
+  if (header[0] === 0x25 && header[1] === 0x50 && header[2] === 0x44 && header[3] === 0x46) return "application/pdf";
+  return "application/octet-stream";
 }
 
 export interface ServerOptions {
@@ -61,6 +71,48 @@ export function createServer(options: ServerOptions): http.Server {
         }
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(data);
+      });
+      return;
+    }
+
+    // GET /api/conversations-index — lightweight index with dates from all conversation files
+    if (pathname === "/api/conversations-index") {
+      const convDir = path.join(outputDir, "conversations");
+      fs.readdir(convDir, (err, files) => {
+        if (err) {
+          res.writeHead(500, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Failed to read conversations directory" }));
+          return;
+        }
+        const jsonFiles = files.filter((f) => f.endsWith(".json"));
+        const entries: { id: string; title: string; create_time: number; update_time: number }[] = [];
+        let remaining = jsonFiles.length;
+        if (remaining === 0) {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify([]));
+          return;
+        }
+        for (const file of jsonFiles) {
+          fs.readFile(path.join(convDir, file), "utf8", (readErr, data) => {
+            if (!readErr) {
+              try {
+                const conv = JSON.parse(data) as Record<string, unknown>;
+                entries.push({
+                  id: file.replace(".json", ""),
+                  title: String(conv.title ?? ""),
+                  create_time: Number(conv.create_time ?? 0),
+                  update_time: Number(conv.update_time ?? 0),
+                });
+              } catch { /* skip malformed */ }
+            }
+            remaining--;
+            if (remaining === 0) {
+              entries.sort((a, b) => b.update_time - a.update_time);
+              res.writeHead(200, { "Content-Type": "application/json" });
+              res.end(JSON.stringify(entries));
+            }
+          });
+        }
       });
       return;
     }
@@ -111,7 +163,17 @@ export function createServer(options: ServerOptions): http.Server {
           res.end(JSON.stringify({ error: "Asset not found" }));
           return;
         }
-        const mimeType = getMimeType(filename);
+
+        let mimeType = getMimeType(filename);
+        if (!mimeType) {
+          // No extension — detect from magic bytes
+          const fd = fs.openSync(filePath, "r");
+          const header = Buffer.alloc(8);
+          fs.readSync(fd, header, 0, 8, 0);
+          fs.closeSync(fd);
+          mimeType = detectMimeFromBytes(header);
+        }
+
         res.writeHead(200, {
           "Content-Type": mimeType,
           "Content-Length": stats.size,

@@ -1,9 +1,17 @@
-import type { ExportManifest, ConversationFile } from "../types";
+import type { ExportManifest, ConversationFile, ConversationIndexEntry } from "../types";
 
 export async function fetchManifest(): Promise<ExportManifest> {
   const res = await fetch("/api/manifest");
   if (!res.ok) {
     throw new Error(`Failed to fetch manifest: ${res.status} ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function fetchConversationsIndex(): Promise<ConversationIndexEntry[]> {
+  const res = await fetch("/api/conversations-index");
+  if (!res.ok) {
+    throw new Error(`Failed to fetch conversations index: ${res.status} ${res.statusText}`);
   }
   return res.json();
 }

@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { fetchConversation } from "../api/client";
 import type { ConversationFile } from "../types";
 import type { MappingNode, ThreadNode, MessageGroup } from "../lib/thread";
-import { extractThread, filterVisibleMessages, groupMessages } from "../lib/thread";
+import { extractThread, filterVisibleMessages, groupMessages, switchBranch } from "../lib/thread";
 
 export function useConversation(id: string): {
   conversation: ConversationFile | null;
@@ -11,8 +11,10 @@ export function useConversation(id: string): {
   messageGroups: MessageGroup[];
   loading: boolean;
   error: string | null;
+  handleSwitchBranch: (nodeId: string, newChildIndex: number) => void;
 } {
   const [conversation, setConversation] = useState<ConversationFile | null>(null);
+  const [mapping, setMapping] = useState<Record<string, MappingNode>>({});
   const [thread, setThread] = useState<ThreadNode[]>([]);
   const [visibleThread, setVisibleThread] = useState<ThreadNode[]>([]);
   const [messageGroups, setMessageGroups] = useState<MessageGroup[]>([]);
@@ -30,12 +32,13 @@ export function useConversation(id: string): {
         if (cancelled) return;
         setConversation(conv);
 
-        const mapping = conv.mapping as Record<string, MappingNode>;
+        const m = conv.mapping as Record<string, MappingNode>;
+        setMapping(m);
 
         // Use current_node if available, otherwise find a leaf
         let leafId: string | null = (conv as Record<string, unknown>).current_node as string | null;
-        if (!leafId || !mapping[leafId]) {
-          for (const [nodeId, node] of Object.entries(mapping)) {
+        if (!leafId || !m[leafId]) {
+          for (const [nodeId, node] of Object.entries(m)) {
             if (node.children.length === 0) {
               leafId = nodeId;
               break;
@@ -50,7 +53,7 @@ export function useConversation(id: string): {
           return;
         }
 
-        const extracted = extractThread(mapping, leafId);
+        const extracted = extractThread(m, leafId);
         const visible = filterVisibleMessages(extracted);
         setThread(extracted);
         setVisibleThread(visible);
@@ -69,5 +72,20 @@ export function useConversation(id: string): {
     };
   }, [id]);
 
-  return { conversation, thread, visibleThread, messageGroups, loading, error };
+  const handleSwitchBranch = useCallback(
+    (nodeId: string, newChildIndex: number) => {
+      try {
+        const newThread = switchBranch(mapping, thread, nodeId, newChildIndex);
+        const visible = filterVisibleMessages(newThread);
+        setThread(newThread);
+        setVisibleThread(visible);
+        setMessageGroups(groupMessages(visible));
+      } catch (e) {
+        console.error("Failed to switch branch:", e);
+      }
+    },
+    [mapping, thread],
+  );
+
+  return { conversation, thread, visibleThread, messageGroups, loading, error, handleSwitchBranch };
 }

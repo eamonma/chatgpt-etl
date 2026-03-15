@@ -1,11 +1,30 @@
 import { useCallback, useMemo, useState } from "react";
-import { useConversations } from "../hooks/useConversations";
-import { searchByTitle } from "../lib/search";
+import { useConversations, type ConversationListItem } from "../hooks/useConversations";
 import { SearchBar } from "./SearchBar";
 
 interface ConversationListProps {
   onSelect: (id: string) => void;
   selectedId: string | null;
+}
+
+function searchFilter(conversations: ConversationListItem[], query: string): ConversationListItem[] {
+  if (!query.trim()) return conversations;
+  const q = query.toLowerCase();
+  return conversations.filter((c) => c.title.toLowerCase().includes(q));
+}
+
+function formatDate(ts: number): string {
+  if (!ts) return "";
+  const d = new Date(ts * 1000);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays} days ago`;
+
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: d.getFullYear() !== now.getFullYear() ? "numeric" : undefined });
 }
 
 export function ConversationList({ onSelect, selectedId }: ConversationListProps) {
@@ -17,7 +36,7 @@ export function ConversationList({ onSelect, selectedId }: ConversationListProps
   }, []);
 
   const filtered = useMemo(
-    () => searchByTitle(conversations, query),
+    () => searchFilter(conversations, query),
     [conversations, query],
   );
 
@@ -63,11 +82,16 @@ export function ConversationList({ onSelect, selectedId }: ConversationListProps
                 <span className="shrink-0 w-2 h-2 rounded-full bg-yellow-500" title="Pending" />
               )}
             </div>
-            {c.assetCount > 0 && (
-              <div className="text-xs text-gray-400 mt-0.5">
-                {c.assetCount} file{c.assetCount !== 1 ? "s" : ""}
-              </div>
-            )}
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="text-xs text-gray-400 dark:text-gray-500">
+                {formatDate(c.update_time)}
+              </span>
+              {c.assetCount > 0 && (
+                <span className="text-xs text-gray-400 dark:text-gray-500">
+                  {c.assetCount} file{c.assetCount !== 1 ? "s" : ""}
+                </span>
+              )}
+            </div>
           </button>
         ))}
       </div>

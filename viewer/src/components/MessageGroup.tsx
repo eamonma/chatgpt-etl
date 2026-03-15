@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { MessageGroup as MessageGroupType, ThreadNode } from "../lib/thread";
 import { ContentRenderer } from "./ContentRenderer";
+import { BranchSwitcher } from "./BranchSwitcher";
 
 function formatTimestamp(ts: number | null): string {
   if (ts == null) return "";
@@ -16,13 +17,17 @@ function formatTimestamp(ts: number | null): string {
 export function MessageGroup({
   group,
   conversationId,
+  onSwitchBranch,
 }: {
   group: MessageGroupType;
   conversationId: string;
+  onSwitchBranch: (nodeId: string, newIndex: number) => void;
 }) {
   if (group.role === "user") {
     const msg = group.messages[0]?.node.message;
     if (!msg) return null;
+
+    const tn = group.messages[0];
 
     return (
       <div className="flex justify-end">
@@ -36,11 +41,18 @@ export function MessageGroup({
               />
             </div>
           </div>
-          {msg.create_time && (
-            <div className="text-xs text-gray-400 dark:text-gray-500 mt-1 text-right">
-              {formatTimestamp(msg.create_time)}
-            </div>
-          )}
+          <div className="flex items-center justify-end gap-2 mt-1">
+            {msg.create_time && (
+              <span className="text-xs text-gray-400 dark:text-gray-500">
+                {formatTimestamp(msg.create_time)}
+              </span>
+            )}
+            <BranchSwitcher
+              activeIndex={tn.activeChildIndex}
+              totalChildren={tn.totalChildren}
+              onSwitch={(idx) => onSwitchBranch(tn.node.id, idx)}
+            />
+          </div>
         </div>
       </div>
     );
@@ -252,6 +264,20 @@ function ProcessBlock({
               // If we have search_result_groups, render them as nice cards
               if (srg && Array.isArray(srg) && srg.length > 0) {
                 return <SearchResultGroups key={tn.node.id} groups={srg} />;
+              }
+
+              // Multimodal tool results (e.g. DALL-E images) — use ContentRenderer
+              if (ct === "multimodal_text") {
+                return (
+                  <div key={tn.node.id}>
+                    {toolName && (
+                      <div className="text-xs font-mono text-purple-500 dark:text-purple-400 mb-1">
+                        {toolName}
+                      </div>
+                    )}
+                    <ContentRenderer content={msg.content} conversationId={conversationId} />
+                  </div>
+                );
               }
 
               const text = (msg.content.parts ?? [])

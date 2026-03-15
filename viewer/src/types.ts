@@ -12,6 +12,13 @@ export interface ExportManifest {
   conversations: Record<string, ManifestConversation>;
 }
 
+export interface ConversationIndexEntry {
+  id: string;
+  title: string;
+  create_time: number;
+  update_time: number;
+}
+
 /**
  * Minimal type for a full conversation JSON file.
  * Extend as needed when building the detail view.

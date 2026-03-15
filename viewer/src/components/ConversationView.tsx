@@ -1,5 +1,8 @@
+import { useState } from "react";
 import { useConversation } from "../hooks/useConversation";
 import { MessageGroup } from "./MessageGroup";
+import { CopyThreadButton } from "./CopyThreadButton";
+import { MetadataPanel } from "./MetadataPanel";
 
 export function ConversationView({
   conversationId,
@@ -8,8 +11,9 @@ export function ConversationView({
   conversationId: string;
   onBack: () => void;
 }) {
-  const { conversation, messageGroups, loading, error } =
+  const { conversation, visibleThread, messageGroups, loading, error, handleSwitchBranch } =
     useConversation(conversationId);
+  const [showMetadata, setShowMetadata] = useState(false);
 
   if (loading) {
     return (
@@ -46,22 +50,42 @@ export function ConversationView({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
-        <h2 className="text-sm font-medium truncate">
+        <h2 className="text-sm font-medium truncate flex-1">
           {conversation?.title ?? "Conversation"}
         </h2>
+        <div className="flex items-center gap-1 shrink-0">
+          <CopyThreadButton thread={visibleThread} title={conversation?.title ?? ""} />
+          <button
+            onClick={() => setShowMetadata((v) => !v)}
+            className={`p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 ${showMetadata ? "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300" : ""}`}
+            title="Toggle metadata"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </button>
+        </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
-          {messageGroups.map((group, i) => (
-            <MessageGroup
-              key={i}
-              group={group}
-              conversationId={conversationId}
-            />
-          ))}
+      <div className="flex flex-1 min-h-0">
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+            {messageGroups.map((group, i) => (
+              <MessageGroup
+                key={i}
+                group={group}
+                conversationId={conversationId}
+                onSwitchBranch={handleSwitchBranch}
+              />
+            ))}
+          </div>
         </div>
+
+        {/* Metadata panel */}
+        {showMetadata && conversation && (
+          <MetadataPanel conversation={conversation} />
+        )}
       </div>
     </div>
   );
