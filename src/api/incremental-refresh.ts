@@ -14,6 +14,8 @@ export interface ClassifiedConversation {
   id: string;
   title: string;
   status: "new" | "updated" | "unchanged";
+  /** The update_time from the list API, stored for future comparisons. */
+  updateTime: number;
 }
 
 export interface ClassifyPageResult {
@@ -55,7 +57,7 @@ export function classifyPage(
       allUnchanged = false;
     }
 
-    conversations.push({ id: conv.id, title: conv.title, status });
+    conversations.push({ id: conv.id, title: conv.title, status, updateTime: apiUpdateTime });
   }
 
   return { conversations, allUnchanged };
@@ -97,16 +99,15 @@ export async function buildLookupFromDisk(
 }
 
 /**
- * Paginate the conversation list API, comparing against saved files on disk.
+ * Paginate the conversation list API, comparing against a stored lookup.
  * Returns only new and updated conversations. Stops when a full page of
- * results are all unchanged (already on disk with matching update_time).
+ * results are all unchanged (matching update_time in the lookup).
  */
 export async function listNewAndUpdatedConversations(
   client: ChatGptClient,
   token: string,
-  outputDir: string,
+  lookup: StoredConversationLookup,
 ): Promise<ClassifiedConversation[]> {
-  const lookup = await buildLookupFromDisk(outputDir);
   const headers = buildHeaders(token);
   const result: ClassifiedConversation[] = [];
   let offset = 0;

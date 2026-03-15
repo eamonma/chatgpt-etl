@@ -1,7 +1,8 @@
 import type { ChatGptClient } from "./client/interface.js";
 import type { ExportManifest, ExportOptions } from "./types.js";
 import { listAllConversations } from "./api/conversation-lister.js";
-import { listNewAndUpdatedConversations } from "./api/incremental-refresh.js";
+import { listNewAndUpdatedConversations, buildLookupFromDisk } from "./api/incremental-refresh.js";
+import type { StoredConversationLookup } from "./api/incremental-refresh.js";
 import { fetchConversation } from "./api/conversation-fetcher.js";
 import { extractDeepResearchRefs, fetchDeepResearchResult } from "./api/deep-research-fetcher.js";
 import { loadManifest, saveManifest, markConversation } from "./persistence/manifest.js";
@@ -43,9 +44,15 @@ export async function runExport(
   const hasExistingConversations = Object.keys(manifest.conversations).length > 0;
 
   if (hasExistingConversations && options.refreshList) {
-    // 2a. Incremental refresh: compare API list against saved files on disk.
+    // 2a. Incremental refresh: compare API list against manifest updateTimes.
     // Only new/updated conversations are marked pending.
-    const changed = await listNewAndUpdatedConversations(client, token, outputDir);
+    // Prefer manifest-stored updateTimes (from the list API) over disk files,
+    // since the detail API may return a different update_time than the list API.
+    const hasManifestTimes = Object.values(manifest.conversations).some(c => c.updateTime != null);
+    const lookup: StoredConversationLookup = hasManifestTimes
+      ? (id: string) => manifest.conversations[id]?.updateTime ?? null
+      : await buildLookupFromDisk(outputDir);
+    const changed = await listNewAndUpdatedConversations(client, token, lookup);
 
     for (const conv of changed) {
       manifest = markConversation(manifest, conv.id, {
@@ -53,6 +60,7 @@ export async function runExport(
         title: conv.title,
         status: "pending",
         assetCount: 0,
+        updateTime: conv.updateTime,
       });
     }
 
@@ -71,6 +79,7 @@ export async function runExport(
         title: conv.title,
         status: "pending",
         assetCount: 0,
+        updateTime: Number(conv.update_time),
       });
     }
 

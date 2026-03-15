@@ -58,6 +58,8 @@ export interface ManifestConversation {
   status: ConversationExportStatus;
   error?: string;
   assetCount: number;
+  /** update_time from the conversation list API, used to detect changes on refresh. */
+  updateTime?: number;
 }
 
 export interface ExportManifest {

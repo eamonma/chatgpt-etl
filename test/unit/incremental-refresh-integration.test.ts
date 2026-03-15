@@ -9,6 +9,7 @@ import type { FetchResponse } from "../../src/client/interface.js";
 import {
   buildLookupFromDisk,
   listNewAndUpdatedConversations,
+  type StoredConversationLookup,
 } from "../../src/api/incremental-refresh.js";
 
 function makeSummary(
@@ -106,7 +107,8 @@ describe("listNewAndUpdatedConversations", () => {
       },
     ]);
 
-    const result = await listNewAndUpdatedConversations(client, "token", outputDir);
+    const lookup = await buildLookupFromDisk(outputDir);
+    const result = await listNewAndUpdatedConversations(client, "token", lookup);
 
     expect(result).toHaveLength(2);
     expect(result.map((c) => c.id)).toEqual(["a", "b"]);
@@ -150,7 +152,8 @@ describe("listNewAndUpdatedConversations", () => {
       },
     ]);
 
-    const result = await listNewAndUpdatedConversations(client, "token", outputDir);
+    const lookup = await buildLookupFromDisk(outputDir);
+    const result = await listNewAndUpdatedConversations(client, "token", lookup);
 
     // Should return only the 3 new conversations, NOT very-old-1
     expect(result).toHaveLength(3);
@@ -194,7 +197,8 @@ describe("listNewAndUpdatedConversations", () => {
       },
     ]);
 
-    const result = await listNewAndUpdatedConversations(client, "token", outputDir);
+    const lookup = await buildLookupFromDisk(outputDir);
+    const result = await listNewAndUpdatedConversations(client, "token", lookup);
 
     // Should return new-1 and new-2 (skipping unchanged ones)
     expect(result).toHaveLength(2);
@@ -229,7 +233,8 @@ describe("listNewAndUpdatedConversations", () => {
       },
     ]);
 
-    const result = await listNewAndUpdatedConversations(client, "token", outputDir);
+    const lookup = await buildLookupFromDisk(outputDir);
+    const result = await listNewAndUpdatedConversations(client, "token", lookup);
 
     // Should return only the updated conversation
     expect(result).toHaveLength(1);
@@ -277,7 +282,8 @@ describe("listNewAndUpdatedConversations", () => {
       },
     ]);
 
-    const result = await listNewAndUpdatedConversations(client, "token", outputDir);
+    const lookup = await buildLookupFromDisk(outputDir);
+    const result = await listNewAndUpdatedConversations(client, "token", lookup);
 
     // Must include D (new), B (updated), and C (new)
     expect(result).toHaveLength(3);

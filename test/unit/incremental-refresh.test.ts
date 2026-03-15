@@ -31,9 +31,9 @@ describe("classifyPage", () => {
     const result = classifyPage(page, lookup);
 
     expect(result.conversations).toEqual([
-      { id: "a", title: "Conversation a", status: "new" },
-      { id: "b", title: "Conversation b", status: "new" },
-      { id: "c", title: "Conversation c", status: "new" },
+      { id: "a", title: "Conversation a", status: "new", updateTime: 100 },
+      { id: "b", title: "Conversation b", status: "new", updateTime: 99 },
+      { id: "c", title: "Conversation c", status: "new", updateTime: 98 },
     ]);
     expect(result.allUnchanged).toBe(false);
   });
@@ -52,8 +52,8 @@ describe("classifyPage", () => {
     const result = classifyPage(page, lookup);
 
     expect(result.conversations).toEqual([
-      { id: "a", title: "Conversation a", status: "unchanged" },
-      { id: "b", title: "Conversation b", status: "unchanged" },
+      { id: "a", title: "Conversation a", status: "unchanged", updateTime: 100 },
+      { id: "b", title: "Conversation b", status: "unchanged", updateTime: 99 },
     ]);
     expect(result.allUnchanged).toBe(true);
   });
@@ -72,8 +72,8 @@ describe("classifyPage", () => {
     const result = classifyPage(page, lookup);
 
     expect(result.conversations).toEqual([
-      { id: "a", title: "Conversation a", status: "updated" },
-      { id: "b", title: "Conversation b", status: "unchanged" },
+      { id: "a", title: "Conversation a", status: "updated", updateTime: 200 },
+      { id: "b", title: "Conversation b", status: "unchanged", updateTime: 99 },
     ]);
     expect(result.allUnchanged).toBe(false);
   });
@@ -96,11 +96,11 @@ describe("classifyPage", () => {
     const result = classifyPage(page, lookup);
 
     expect(result.conversations).toEqual([
-      { id: "new-1", title: "Conversation new-1", status: "new" },
-      { id: "updated-1", title: "Conversation updated-1", status: "updated" },
-      { id: "unchanged-1", title: "Conversation unchanged-1", status: "unchanged" },
-      { id: "new-2", title: "Conversation new-2", status: "new" },
-      { id: "unchanged-2", title: "Conversation unchanged-2", status: "unchanged" },
+      { id: "new-1", title: "Conversation new-1", status: "new", updateTime: 300 },
+      { id: "updated-1", title: "Conversation updated-1", status: "updated", updateTime: 250 },
+      { id: "unchanged-1", title: "Conversation unchanged-1", status: "unchanged", updateTime: 100 },
+      { id: "new-2", title: "Conversation new-2", status: "new", updateTime: 90 },
+      { id: "unchanged-2", title: "Conversation unchanged-2", status: "unchanged", updateTime: 80 },
     ]);
     expect(result.allUnchanged).toBe(false);
   });
