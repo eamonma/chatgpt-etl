@@ -246,7 +246,7 @@ describe("integration: full export pipeline", () => {
     expect(assetConvDirs).toEqual(["conv-a"]);
 
     const assetFiles = await readdir(join(assetsDir, "conv-a"));
-    expect(assetFiles).toEqual(["photo.png"]);
+    expect(assetFiles.sort()).toEqual(["_index.json", "photo.png"]);
 
     const assetContent = await readFile(join(assetsDir, "conv-a", "photo.png"), "utf8");
     expect(assetContent).toBe("FAKE_PNG_BINARY_DATA");

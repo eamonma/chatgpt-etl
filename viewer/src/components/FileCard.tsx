@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { FileTextIcon, ChevronDownIcon, ChevronUpIcon, DownloadIcon } from "lucide-react";
+import { processCitations } from "../lib/citations";
 
 interface FileCardProps {
   fileId: string;
@@ -76,10 +77,14 @@ export function FileCard({ fileId, conversationId }: FileCardProps) {
               <div className="px-4 py-3 max-h-[32rem] overflow-y-auto text-sm">
                 {isMarkdown ? (
                   <div className="prose prose-sm dark:prose-invert max-w-none">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {processCitations(content).text}
+                    </ReactMarkdown>
                   </div>
                 ) : (
-                  <pre className="whitespace-pre-wrap font-mono text-xs">{content}</pre>
+                  <pre className="whitespace-pre-wrap font-mono text-xs">
+                    {processCitations(content).text}
+                  </pre>
                 )}
               </div>
               <div className="px-4 py-2 border-t border-border bg-secondary/30 flex items-center justify-end">

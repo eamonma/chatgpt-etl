@@ -100,6 +100,30 @@ export function extractAssetReferences(
         }
       }
     }
+
+    // Scan content_references for asset_pointer_links (screenshots, etc.)
+    const contentRefs = node.message.metadata?.content_references;
+    if (Array.isArray(contentRefs)) {
+      for (const cr of contentRefs) {
+        if (typeof cr !== "object" || cr == null) continue;
+        const rec = cr as Record<string, unknown>;
+        const links = rec.asset_pointer_links;
+        if (!Array.isArray(links)) continue;
+        for (const link of links) {
+          if (typeof link !== "string") continue;
+          const match = sedimentPattern.exec(link);
+          if (match && !seenFileIds.has(match[1])) {
+            seenFileIds.add(match[1]);
+            refs.push({
+              conversationId,
+              messageId: node.message.id,
+              fileId: match[1],
+              pointer: link,
+            });
+          }
+        }
+      }
+    }
   }
 
   return refs;

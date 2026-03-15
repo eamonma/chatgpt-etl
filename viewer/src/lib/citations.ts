@@ -28,6 +28,8 @@ export interface Footnote {
   url: string;
   attribution?: string;
   snippet?: string;
+  /** sediment:// pointer to a screenshot asset, if available */
+  screenshotPointer?: string;
 }
 
 // Regex to match citation markers: \ue200cite\ue202...\ue201
@@ -167,12 +169,27 @@ export function processCitationsSegmented(
       seg.content = seg.content.replace(TETHER_PATTERN, (match) => {
         const ref = refMap.get(match);
         if (ref) {
-          const r = ref as unknown as { title?: string; url?: string };
-          if (r.title && r.url) {
-            let idx = footnotes.findIndex((f) => f.url === r.url);
+          const r = ref as unknown as {
+            title?: string;
+            url?: string;
+            type?: string;
+            clicked_from_url?: string;
+            clicked_from_title?: string;
+            asset_pointer_links?: string[];
+          };
+          // For image_inline (screenshots), use clicked_from info
+          const title = r.title || r.clicked_from_title || "";
+          const url = r.url || r.clicked_from_url || "";
+          if (title || url) {
+            let idx = footnotes.findIndex((f) => f.url === url);
             if (idx === -1) {
               idx = footnotes.length;
-              footnotes.push({ title: r.title!, url: r.url! });
+              const screenshotPointer = r.asset_pointer_links?.[0];
+              footnotes.push({
+                title: title || url,
+                url,
+                screenshotPointer,
+              });
             }
             return `[${idx + 1}]`;
           }
@@ -243,12 +260,24 @@ export function processCitations(
   processed = processed.replace(TETHER_PATTERN, (match) => {
     const ref = refMap.get(match);
     if (ref) {
-      const r = ref as unknown as { title?: string; url?: string };
-      if (r.title && r.url) {
-        let idx = footnotes.findIndex((f) => f.url === r.url);
+      const r = ref as unknown as {
+        title?: string;
+        url?: string;
+        clicked_from_url?: string;
+        clicked_from_title?: string;
+        asset_pointer_links?: string[];
+      };
+      const title = r.title || r.clicked_from_title || "";
+      const url = r.url || r.clicked_from_url || "";
+      if (title || url) {
+        let idx = footnotes.findIndex((f) => f.url === url);
         if (idx === -1) {
           idx = footnotes.length;
-          footnotes.push({ title: r.title!, url: r.url! });
+          footnotes.push({
+            title: title || url,
+            url,
+            screenshotPointer: r.asset_pointer_links?.[0],
+          });
         }
         return `[${idx + 1}]`;
       }

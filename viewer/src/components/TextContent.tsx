@@ -23,12 +23,19 @@ function getHostname(url: string): string {
   }
 }
 
+function extractFileIdFromPointer(pointer: string): string | null {
+  const match = pointer.match(/sediment:\/\/(file_[a-fA-F0-9]+)/);
+  return match ? match[1] : null;
+}
+
 function CitationBadge({
   footnoteIndices,
   footnotes,
+  conversationId,
 }: {
   footnoteIndices: number[];
   footnotes: Footnote[];
+  conversationId?: string;
 }) {
   const sources = footnoteIndices.map((i) => footnotes[i]).filter(Boolean);
   if (sources.length === 0) return null;
@@ -50,26 +57,39 @@ function CitationBadge({
           </Badge>
         </HoverCardTrigger>
         <HoverCardContent className="w-80 p-0" align="start" sideOffset={0}>
-          <div className="max-h-64 overflow-y-auto divide-y divide-border">
-            {sources.map((source, i) => (
-              <a
-                key={i}
-                href={source.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block p-3 hover:bg-secondary/50 transition-colors"
-              >
-                <div className="font-medium text-sm truncate">{source.title}</div>
-                <div className="text-xs text-muted-foreground truncate mt-0.5">
-                  {getHostname(source.url)}
-                </div>
-                {source.snippet && (
-                  <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
-                    {source.snippet}
-                  </p>
-                )}
-              </a>
-            ))}
+          <div className="max-h-96 overflow-y-auto divide-y divide-border">
+            {sources.map((source, i) => {
+              const screenshotFileId = source.screenshotPointer
+                ? extractFileIdFromPointer(source.screenshotPointer)
+                : null;
+              return (
+                <a
+                  key={i}
+                  href={source.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block p-3 hover:bg-secondary/50 transition-colors"
+                >
+                  {screenshotFileId && conversationId && (
+                    <img
+                      src={`/api/assets/${conversationId}/${screenshotFileId}`}
+                      alt={source.title}
+                      className="w-full rounded mb-2"
+                      loading="lazy"
+                    />
+                  )}
+                  <div className="font-medium text-sm truncate">{source.title}</div>
+                  <div className="text-xs text-muted-foreground truncate mt-0.5">
+                    {getHostname(source.url)}
+                  </div>
+                  {source.snippet && (
+                    <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
+                      {source.snippet}
+                    </p>
+                  )}
+                </a>
+              );
+            })}
           </div>
         </HoverCardContent>
       </HoverCard>
@@ -123,6 +143,7 @@ export function TextContent({
             key={i}
             footnoteIndices={seg.footnoteIndices}
             footnotes={footnotes}
+            conversationId={conversationId}
           />
         );
       })}
