@@ -46,25 +46,18 @@ export function ConversationView({
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-border shrink-0">
-        <Link
-          to="/"
-          className="md:hidden p-1 -ml-1 rounded-lg hover:bg-secondary"
-          aria-label="Back"
-        >
-          <ChevronLeftIcon className="w-5 h-5" />
-        </Link>
-        <h2 className="text-sm font-medium truncate flex-1">
-          {conversation?.title ?? "Conversation"}
-        </h2>
-      </div>
-
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Messages column */}
         <div className="flex-1 min-w-0 flex flex-col relative overflow-hidden">
           <div className="flex-1 min-h-0 overflow-y-auto">
             <div className="flex flex-col gap-6 max-w-3xl mx-auto px-4 py-6 pb-24">
+              <Link
+                to="/"
+                className="md:hidden inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground -ml-1"
+              >
+                <ChevronLeftIcon className="w-4 h-4" />
+                Back
+              </Link>
               {messageGroups.map((group, i) => (
                 <MessageGroup
                   key={i}

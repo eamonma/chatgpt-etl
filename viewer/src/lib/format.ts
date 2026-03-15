@@ -41,10 +41,10 @@ export function formatThreadAsXml(
   return [contextLine, ...formatted].join("\n\n");
 }
 
+// Strip all private-use Unicode markers: \ue200...\ue201
+const MARKER_PATTERN = /\ue200[^\ue201]*\ue201/g;
+
 function extractText(m: FormatMessage): string {
-  if (m.contentType === "multimodal_text") {
-    return m.parts.filter((p): p is string => typeof p === "string").join("\n");
-  }
-  // text or default
-  return m.parts.filter((p): p is string => typeof p === "string").join("\n");
+  const raw = m.parts.filter((p): p is string => typeof p === "string").join("\n");
+  return raw.replace(MARKER_PATTERN, "");
 }
