@@ -144,7 +144,7 @@ export function MessageGroup({
       </div>
 
       <MessageContent>
-        <div className="space-y-2 font-serif">
+        <div className="space-y-2">
           {segments.map((seg, i) => {
             if (seg.type === "process") {
               return <ProcessBlock key={i} messages={seg.messages} conversationId={conversationId} />;
