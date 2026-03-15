@@ -1,16 +1,16 @@
 export interface ConversationSummary {
   id: string;
   title: string;
-  create_time: number;
-  update_time: number;
+  create_time: string | number;
+  update_time: string | number;
   mapping?: Record<string, MessageNode>;
 }
 
 export interface ConversationDetail {
   id: string;
   title: string;
-  create_time: number;
-  update_time: number;
+  create_time: string | number;
+  update_time: string | number;
   mapping: Record<string, MessageNode>;
   moderation_results: unknown[];
   current_node: string;
