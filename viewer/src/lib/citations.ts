@@ -65,7 +65,8 @@ function buildRefMap(contentReferences: unknown[]): Map<string, CitationRef> {
 
 export type Segment =
   | { type: "text"; content: string }
-  | { type: "citation"; footnoteIndices: number[] };
+  | { type: "citation"; footnoteIndices: number[] }
+  | { type: "file"; fileId: string };
 
 /**
  * Process text into segments of text and citations.
@@ -143,9 +144,26 @@ export function processCitationsSegmented(
         const ref = refMap.get(match);
         return ref?.alt ?? "";
       });
-      seg.content = seg.content.replace(FILE_REF_PATTERN, (_match, fileId: string) => {
-        return `[Attached file: ${fileId}]`;
-      });
+      // Split file refs into separate segments
+      const parts: Segment[] = [];
+      let remaining = seg.content;
+      let fileMatch: RegExpExecArray | null;
+      const fileRe = new RegExp(FILE_REF_PATTERN.source, "g");
+      let lastIdx = 0;
+      while ((fileMatch = fileRe.exec(remaining)) !== null) {
+        if (fileMatch.index > lastIdx) {
+          parts.push({ type: "text", content: remaining.slice(lastIdx, fileMatch.index) });
+        }
+        parts.push({ type: "file", fileId: fileMatch[1] });
+        lastIdx = fileMatch.index + fileMatch[0].length;
+      }
+      if (parts.length > 0) {
+        if (lastIdx < remaining.length) {
+          parts.push({ type: "text", content: remaining.slice(lastIdx) });
+        }
+        segments.splice(i, 1, ...parts);
+        i += parts.length - 1;
+      }
       seg.content = seg.content.replace(TETHER_PATTERN, (match) => {
         const ref = refMap.get(match);
         if (ref) {

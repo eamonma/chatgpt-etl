@@ -3,7 +3,7 @@ import type { ExportManifest, ExportOptions } from "./types.js";
 import { listAllConversations } from "./api/conversation-lister.js";
 import { fetchConversation } from "./api/conversation-fetcher.js";
 import { loadManifest, saveManifest, markConversation } from "./persistence/manifest.js";
-import { writeConversation, writeAsset } from "./persistence/file-writer.js";
+import { writeConversation, writeAsset, writeAssetIndex } from "./persistence/file-writer.js";
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -110,6 +110,8 @@ export async function runExport(
           const assetData = assetResponse.bodyBuffer ?? Buffer.from(assetResponse.body);
           await writeAsset(outputDir, id, asset.fileName, assetData);
         }
+        // Write asset index (fileId → fileName mapping)
+        await writeAssetIndex(outputDir, id, result.assets);
       }
 
       // Mark complete (clear any previous error)

@@ -139,6 +139,108 @@ export function createServer(options: ServerOptions): http.Server {
       return;
     }
 
+    // GET /api/assets/:conversationId/resolve/:fileId — resolve file ID to filename and serve
+    const resolveMatch = pathname.match(/^\/api\/assets\/([^/]+)\/resolve\/([^/]+)$/);
+    if (resolveMatch) {
+      const conversationId = resolveMatch[1];
+      const fileId = resolveMatch[2];
+      if (!UUID_RE.test(conversationId)) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid conversation ID" }));
+        return;
+      }
+      // Try _index.json first
+      const indexPath = path.join(outputDir, "assets", conversationId, "_index.json");
+      fs.readFile(indexPath, "utf8", (err, data) => {
+        if (!err) {
+          try {
+            const index = JSON.parse(data) as Record<string, string>;
+            const fileName = index[fileId];
+            if (fileName) {
+              const filePath = path.join(outputDir, "assets", conversationId, fileName);
+              fs.stat(filePath, (statErr, stats) => {
+                if (statErr || !stats.isFile()) {
+                  res.writeHead(404, { "Content-Type": "application/json" });
+                  res.end(JSON.stringify({ error: "File not found" }));
+                  return;
+                }
+                let mimeType = getMimeType(fileName);
+                if (!mimeType) {
+                  const fd = fs.openSync(filePath, "r");
+                  const header = Buffer.alloc(8);
+                  fs.readSync(fd, header, 0, 8, 0);
+                  fs.closeSync(fd);
+                  mimeType = detectMimeFromBytes(header);
+                }
+                res.writeHead(200, {
+                  "Content-Type": mimeType,
+                  "Content-Length": stats.size,
+                  "X-File-Name": fileName,
+                });
+                fs.createReadStream(filePath).pipe(res);
+              });
+              return;
+            }
+          } catch { /* fall through */ }
+        }
+        // No index or not found — try serving fileId directly as filename
+        const directPath = path.join(outputDir, "assets", conversationId, fileId);
+        fs.stat(directPath, (statErr, stats) => {
+          if (statErr || !stats.isFile()) {
+            res.writeHead(404, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "File not found" }));
+            return;
+          }
+          let mimeType = getMimeType(fileId);
+          if (!mimeType) {
+            const fd = fs.openSync(directPath, "r");
+            const header = Buffer.alloc(8);
+            fs.readSync(fd, header, 0, 8, 0);
+            fs.closeSync(fd);
+            mimeType = detectMimeFromBytes(header);
+          }
+          res.writeHead(200, {
+            "Content-Type": mimeType,
+            "Content-Length": stats.size,
+            "X-File-Name": fileId,
+          });
+          fs.createReadStream(directPath).pipe(res);
+        });
+      });
+      return;
+    }
+
+    // GET /api/assets/:conversationId — list all files in asset directory
+    const assetListMatch = pathname.match(/^\/api\/assets\/([^/]+)$/);
+    if (assetListMatch) {
+      const conversationId = assetListMatch[1];
+      if (!UUID_RE.test(conversationId)) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid conversation ID" }));
+        return;
+      }
+      const assetDir = path.join(outputDir, "assets", conversationId);
+      fs.readdir(assetDir, (err, files) => {
+        if (err) {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify([]));
+          return;
+        }
+        const entries = files.map((name) => {
+          const filePath = path.join(assetDir, name);
+          try {
+            const stats = fs.statSync(filePath);
+            return { name, size: stats.size };
+          } catch {
+            return { name, size: 0 };
+          }
+        });
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(entries));
+      });
+      return;
+    }
+
     // GET /api/assets/:conversationId/:filename
     const assetMatch = pathname.match(/^\/api\/assets\/([^/]+)\/([^/]+)$/);
     if (assetMatch) {

@@ -13,6 +13,7 @@ import {
   HoverCardContent,
 } from "@/components/ui/hover-card";
 import { Badge } from "@/components/ui/badge";
+import { FileCard } from "./FileCard";
 
 function getHostname(url: string): string {
   try {
@@ -79,9 +80,11 @@ function CitationBadge({
 export function TextContent({
   content,
   contentReferences,
+  conversationId,
 }: {
   content: MessageContent;
   contentReferences?: unknown[];
+  conversationId?: string;
 }) {
   const rawText = (content.parts ?? [])
     .filter((p): p is string => typeof p === "string")
@@ -93,22 +96,27 @@ export function TextContent({
   );
 
   const hasAnyCitations = segments.some((s) => s.type === "citation");
+  const hasAnyFiles = segments.some((s) => s.type === "file");
 
-  // No citations — render everything with MessageResponse (full markdown)
-  if (!hasAnyCitations) {
+  // No citations or files — render everything with MessageResponse (full markdown)
+  if (!hasAnyCitations && !hasAnyFiles) {
     const text = segments.map((s) => s.type === "text" ? s.content : "").join("");
     if (!text.trim()) return null;
     return <MessageResponse>{text}</MessageResponse>;
   }
 
-  // Has citations — render segments sequentially.
-  // Text segments get MessageResponse, citation segments get interactive badges.
+  // Has citations or files — render segments sequentially.
   return (
     <div>
       {segments.map((seg, i) => {
         if (seg.type === "text") {
           if (!seg.content.trim()) return null;
           return <MessageResponse key={i}>{seg.content}</MessageResponse>;
+        }
+        if (seg.type === "file") {
+          return conversationId ? (
+            <FileCard key={i} fileId={seg.fileId} conversationId={conversationId} />
+          ) : null;
         }
         return (
           <CitationBadge

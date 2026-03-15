@@ -47,7 +47,7 @@ export function ContentRenderer({
 
   switch (ct) {
     case "text":
-      return <TextContent content={content} contentReferences={contentReferences} />;
+      return <TextContent content={content} contentReferences={contentReferences} conversationId={conversationId} />;
     case "code": {
       const raw = content as unknown as Record<string, unknown>;
       const language = (raw.language as string) ?? "text";

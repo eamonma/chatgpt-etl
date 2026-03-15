@@ -36,3 +36,18 @@ export async function writeAsset(
   const filePath = join(outputDir, "assets", conversationId, fileName);
   await writeIfChanged(filePath, data);
 }
+
+/** Write an index mapping fileId → fileName for a conversation's assets. */
+export async function writeAssetIndex(
+  outputDir: string,
+  conversationId: string,
+  assets: { fileId: string; fileName: string }[],
+): Promise<void> {
+  if (assets.length === 0) return;
+  const index: Record<string, string> = {};
+  for (const a of assets) {
+    index[a.fileId] = a.fileName;
+  }
+  const filePath = join(outputDir, "assets", conversationId, "_index.json");
+  await writeIfChanged(filePath, JSON.stringify(index, null, 2));
+}
