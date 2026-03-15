@@ -1,4 +1,7 @@
+import { useCallback, useMemo, useState } from "react";
 import { useConversations } from "../hooks/useConversations";
+import { searchByTitle } from "../lib/search";
+import { SearchBar } from "./SearchBar";
 import type { ManifestConversation } from "../types";
 
 const statusColors: Record<ManifestConversation["status"], string> = {
@@ -13,6 +16,16 @@ interface ConversationListProps {
 
 export function ConversationList({ onSelect }: ConversationListProps) {
   const { conversations, loading, error } = useConversations();
+  const [query, setQuery] = useState("");
+
+  const handleSearch = useCallback((q: string) => {
+    setQuery(q);
+  }, []);
+
+  const filtered = useMemo(
+    () => searchByTitle(conversations, query),
+    [conversations, query]
+  );
 
   if (loading) {
     return <p style={{ padding: 24, color: "#888" }}>Loading conversations...</p>;
@@ -34,7 +47,8 @@ export function ConversationList({ onSelect }: ConversationListProps) {
         padding: "8px 0",
       }}
     >
-      {conversations.map((c) => (
+      <SearchBar onSearch={handleSearch} />
+      {filtered.map((c) => (
         <button
           key={c.id}
           onClick={() => onSelect(c.id)}
