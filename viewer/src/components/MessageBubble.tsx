@@ -32,7 +32,7 @@ export function MessageBubble({
         <div className="max-w-[85%] md:max-w-[70%]">
           <div className="bg-gray-100 dark:bg-gray-700 rounded-2xl px-4 py-3">
             <div className="text-sm">
-              <ContentRenderer content={message.content} conversationId={conversationId} />
+              <ContentRenderer content={message.content} conversationId={conversationId} contentReferences={message.metadata?.content_references as unknown[] | undefined} />
             </div>
           </div>
           {message.create_time && (

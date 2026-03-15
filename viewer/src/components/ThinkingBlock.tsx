@@ -10,13 +10,16 @@ interface Thought {
 export function ThinkingBlock({ content }: { content: MessageContent }) {
   const [expanded, setExpanded] = useState(false);
 
-  const raw = (content as unknown as Record<string, unknown>).thoughts as string | undefined;
+  const raw = (content as unknown as Record<string, unknown>).thoughts;
   let thoughts: Thought[] = [];
-  if (raw) {
+  if (Array.isArray(raw)) {
+    // Already parsed array (most common in real data)
+    thoughts = raw as Thought[];
+  } else if (typeof raw === "string") {
     try {
       thoughts = JSON.parse(raw) as Thought[];
     } catch {
-      thoughts = [{ summary: "Thought", content: raw, finished: true }];
+      thoughts = [{ summary: "", content: raw, finished: true }];
     }
   }
 

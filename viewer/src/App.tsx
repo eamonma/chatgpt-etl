@@ -12,7 +12,7 @@ export function App() {
         className={`
           ${selectedConversationId ? "hidden md:flex" : "flex"}
           flex-col w-full md:w-80 lg:w-96 border-r border-gray-200 dark:border-gray-700
-          bg-gray-50 dark:bg-gray-850 shrink-0
+          bg-gray-100 dark:bg-gray-900 shrink-0
         `}
       >
         <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">

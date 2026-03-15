@@ -13,13 +13,17 @@ import { FallbackContent } from "./FallbackContent";
 
 const HIDDEN_TYPES = new Set(["user_editable_context", "model_editable_context"]);
 
+export interface ContentRendererProps {
+  content: MessageContent;
+  conversationId: string;
+  contentReferences?: unknown[];
+}
+
 export function ContentRenderer({
   content,
   conversationId,
-}: {
-  content: MessageContent;
-  conversationId: string;
-}) {
+  contentReferences,
+}: ContentRendererProps) {
   const ct = content.content_type;
 
   if (HIDDEN_TYPES.has(ct)) {
@@ -28,7 +32,7 @@ export function ContentRenderer({
 
   switch (ct) {
     case "text":
-      return <TextContent content={content} />;
+      return <TextContent content={content} contentReferences={contentReferences} />;
     case "code":
       return <CodeBlock content={content} />;
     case "execution_output":
@@ -36,7 +40,7 @@ export function ContentRenderer({
     case "thoughts":
       return <ThinkingBlock content={content} />;
     case "multimodal_text":
-      return <MultimodalContent content={content} conversationId={conversationId} />;
+      return <MultimodalContent content={content} conversationId={conversationId} contentReferences={contentReferences} />;
     case "tether_browsing_display":
       return <BrowsingDisplay content={content} />;
     case "sonic_webpage":
