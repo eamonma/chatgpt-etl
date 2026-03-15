@@ -73,10 +73,13 @@ export function MessageGroup({
     if (!msg) continue;
     const ct = msg.content.content_type;
 
+    // Output = assistant text/multimodal visible to user, NOT commentary
+    // Commentary text is "thinking aloud" preamble — goes in process block
     const isOutput =
       msg.author.role === "assistant" &&
       (ct === "text" || ct === "multimodal_text") &&
-      (msg.recipient ?? "all") === "all";
+      (msg.recipient ?? "all") === "all" &&
+      msg.channel !== "commentary";
 
     if (isOutput) {
       if (currentProcess.length > 0) {

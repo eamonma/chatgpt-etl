@@ -145,9 +145,10 @@ describe("filterVisibleMessages", () => {
     const thread = extractThread(mapping, "asst1");
     const visible = filterVisibleMessages(thread);
 
-    // Only user1 and asst1 should be visible
-    expect(visible).toHaveLength(2);
+    // user1, commentary (assistant commentary is kept), and asst1 should be visible
+    expect(visible).toHaveLength(3);
     expect(visible[0].node.id).toBe("user1");
-    expect(visible[1].node.id).toBe("asst1");
+    expect(visible[1].node.id).toBe("commentary");
+    expect(visible[2].node.id).toBe("asst1");
   });
 });
