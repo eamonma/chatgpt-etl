@@ -12,34 +12,12 @@ export function ReasoningRecap({ content }: { content: MessageContent }) {
     (rc.parts ?? []).filter((p): p is string => typeof p === "string").join("\n");
 
   return (
-    <div
-      style={{
-        borderLeft: "3px solid #bb9af7",
-        paddingLeft: "12px",
-        padding: "10px 12px",
-        background: "#1a1a2a",
-        borderRadius: "0 6px 6px 0",
-        color: "#bbb",
-        fontStyle: "italic",
-        whiteSpace: "pre-wrap",
-        fontSize: "0.875rem",
-        lineHeight: 1.5,
-      }}
-    >
-      <div
-        style={{
-          fontWeight: 600,
-          color: "#bb9af7",
-          marginBottom: "6px",
-          fontStyle: "normal",
-          fontSize: "0.8rem",
-          textTransform: "uppercase",
-          letterSpacing: "0.05em",
-        }}
-      >
+    <div className="my-2 border-l-3 border-purple-400 dark:border-purple-500 pl-4 py-2
+      text-sm italic text-gray-500 dark:text-gray-400 leading-relaxed">
+      <div className="not-italic font-medium text-xs uppercase tracking-wide text-purple-500 dark:text-purple-400 mb-1">
         Reasoning Summary
       </div>
-      {text}
+      <div className="whitespace-pre-wrap">{text}</div>
     </div>
   );
 }

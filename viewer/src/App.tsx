@@ -3,46 +3,41 @@ import { ConversationList } from "./components/ConversationList";
 import { ConversationView } from "./components/ConversationView";
 
 export function App() {
-  const [selectedConversationId, setSelectedConversationId] = useState<
-    string | null
-  >(null);
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
-      <header
-        style={{
-          padding: "12px 16px",
-          borderBottom: "1px solid #e5e7eb",
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-        }}
+    <div className="flex h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+      {/* Sidebar */}
+      <aside
+        className={`
+          ${selectedConversationId ? "hidden md:flex" : "flex"}
+          flex-col w-full md:w-80 lg:w-96 border-r border-gray-200 dark:border-gray-700
+          bg-gray-50 dark:bg-gray-850 shrink-0
+        `}
       >
-        {selectedConversationId && (
-          <button
-            onClick={() => setSelectedConversationId(null)}
-            style={{
-              border: "none",
-              background: "none",
-              cursor: "pointer",
-              fontSize: 16,
-              padding: "4px 8px",
-            }}
-          >
-            &larr; Back
-          </button>
-        )}
-        <h1 style={{ margin: 0, fontSize: 18 }}>ChatGPT Viewer</h1>
-      </header>
+        <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+          <h1 className="text-lg font-semibold">ChatGPT Archive</h1>
+        </div>
+        <ConversationList
+          onSelect={setSelectedConversationId}
+          selectedId={selectedConversationId}
+        />
+      </aside>
 
-      <main style={{ flex: 1, overflow: "hidden" }}>
-        {selectedConversationId == null ? (
-          <ConversationList onSelect={setSelectedConversationId} />
-        ) : (
+      {/* Main content */}
+      <main className={`
+        ${selectedConversationId ? "flex" : "hidden md:flex"}
+        flex-col flex-1 min-w-0
+      `}>
+        {selectedConversationId ? (
           <ConversationView
             conversationId={selectedConversationId}
             onBack={() => setSelectedConversationId(null)}
           />
+        ) : (
+          <div className="flex-1 flex items-center justify-center text-gray-400 dark:text-gray-500">
+            <p className="text-lg">Select a conversation</p>
+          </div>
         )}
       </main>
     </div>

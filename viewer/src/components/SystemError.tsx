@@ -14,37 +14,13 @@ export function SystemError({ content }: { content: MessageContent }) {
     (se.parts ?? []).filter((p): p is string => typeof p === "string").join("\n");
 
   return (
-    <div
-      style={{
-        background: "#2a0a0a",
-        border: "1px solid #f7768e",
-        borderRadius: "6px",
-        padding: "12px",
-        fontSize: "0.875rem",
-      }}
-    >
-      <div
-        style={{
-          fontWeight: 600,
-          color: "#f7768e",
-          marginBottom: "6px",
-          display: "flex",
-          alignItems: "center",
-          gap: "6px",
-        }}
-      >
-        <span>&#x26A0;</span> {name}
+    <div className="my-2 rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30 p-4">
+      <div className="font-medium text-sm text-red-600 dark:text-red-400 mb-1">
+        {name}
       </div>
-      <div
-        style={{
-          whiteSpace: "pre-wrap",
-          color: "#e08080",
-          fontFamily: "monospace",
-          lineHeight: 1.5,
-        }}
-      >
+      <pre className="text-sm font-mono text-red-500 dark:text-red-400 whitespace-pre-wrap leading-relaxed">
         {text}
-      </div>
+      </pre>
     </div>
   );
 }

@@ -16,49 +16,37 @@ export function ThinkingBlock({ content }: { content: MessageContent }) {
     try {
       thoughts = JSON.parse(raw) as Thought[];
     } catch {
-      // If parsing fails, show raw text as a single thought
       thoughts = [{ summary: "Thought", content: raw, finished: true }];
     }
   }
 
   return (
-    <div
-      style={{
-        border: "1px solid #444",
-        borderRadius: "6px",
-        overflow: "hidden",
-      }}
-    >
+    <div className="my-2 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        style={{
-          display: "block",
-          width: "100%",
-          padding: "8px 12px",
-          background: "#2a2a2a",
-          color: "#ccc",
-          border: "none",
-          cursor: "pointer",
-          textAlign: "left",
-          fontWeight: 600,
-          fontSize: "0.875rem",
-        }}
+        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-500 dark:text-gray-400
+          hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left"
       >
-        {expanded ? "\u25BC" : "\u25B6"} Thinking\u2026
+        <svg
+          className={`w-3 h-3 transition-transform ${expanded ? "rotate-90" : ""}`}
+          fill="currentColor" viewBox="0 0 20 20"
+        >
+          <path d="M6 4l8 6-8 6V4z" />
+        </svg>
+        <span className="font-medium">Thinking...</span>
       </button>
       {expanded && (
-        <div style={{ padding: "8px 12px", background: "#1a1a1a" }}>
+        <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700
+          bg-gray-50 dark:bg-gray-800/50 text-sm text-gray-600 dark:text-gray-400 space-y-3">
           {thoughts.map((t, i) => (
-            <div key={i} style={{ marginBottom: "8px" }}>
+            <div key={i}>
               {t.summary && (
-                <div style={{ fontWeight: 600, color: "#aaa", marginBottom: "4px" }}>
+                <div className="font-medium text-gray-700 dark:text-gray-300 mb-1">
                   {t.summary}
                 </div>
               )}
-              <div style={{ whiteSpace: "pre-wrap", color: "#ccc", fontSize: "0.875rem" }}>
-                {t.content}
-              </div>
+              <div className="whitespace-pre-wrap leading-relaxed">{t.content}</div>
             </div>
           ))}
         </div>

@@ -1,7 +1,8 @@
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import type { MessageContent } from "../lib/thread";
 
 function extractFileId(assetPointer: string): string | null {
-  // Format: sediment://file_{hex_id}
   const match = assetPointer.match(/sediment:\/\/(file_[a-fA-F0-9]+)/);
   return match ? match[1] : null;
 }
@@ -16,13 +17,13 @@ export function MultimodalContent({
   const parts = content.parts ?? [];
 
   return (
-    <div>
+    <div className="space-y-2">
       {parts.map((part, i) => {
         if (typeof part === "string") {
           return (
-            <div key={i} style={{ whiteSpace: "pre-wrap" }}>
+            <ReactMarkdown key={i} remarkPlugins={[remarkGfm]}>
               {part}
-            </div>
+            </ReactMarkdown>
           );
         }
 
@@ -36,13 +37,21 @@ export function MultimodalContent({
                 key={i}
                 src={`/api/assets/${conversationId}/${fileId}`}
                 alt=""
-                style={{ maxWidth: "100%", borderRadius: "6px", marginTop: "4px" }}
+                className="max-w-full rounded-lg mt-2"
+                loading="lazy"
               />
             );
           }
         }
 
-        // Unknown object part — skip or render as debug info
+        if (obj.content_type === "audio_transcription") {
+          return (
+            <div key={i} className="italic text-gray-500 dark:text-gray-400">
+              [Audio: {(obj.text as string) ?? "transcription"}]
+            </div>
+          );
+        }
+
         return null;
       })}
     </div>

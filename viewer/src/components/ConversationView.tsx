@@ -13,17 +13,20 @@ export function ConversationView({
 
   if (loading) {
     return (
-      <div style={{ padding: 24, textAlign: "center" }}>
-        <p>Loading conversation...</p>
+      <div className="flex-1 flex items-center justify-center text-gray-400">
+        <div className="animate-pulse">Loading conversation...</div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div style={{ padding: 24 }}>
-        <p style={{ color: "#ef4444" }}>Error: {error}</p>
-        <button onClick={onBack} style={{ marginTop: 8 }}>
+      <div className="flex-1 flex flex-col items-center justify-center gap-4 text-gray-500">
+        <p className="text-red-500">Error: {error}</p>
+        <button
+          onClick={onBack}
+          className="px-4 py-2 text-sm rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700"
+        >
           Go back
         </button>
       </div>
@@ -31,46 +34,39 @@ export function ConversationView({
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <div
-        style={{
-          padding: "8px 16px",
-          borderBottom: "1px solid #e5e7eb",
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-        }}
-      >
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700 shrink-0">
         <button
           onClick={onBack}
-          style={{
-            border: "none",
-            background: "none",
-            cursor: "pointer",
-            fontSize: 16,
-            padding: "4px 8px",
-          }}
+          className="md:hidden p-1 -ml-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+          aria-label="Back"
         >
-          &larr; Back
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
         </button>
-        <h2 style={{ margin: 0, fontSize: 16 }}>
+        <h2 className="text-sm font-medium truncate">
           {conversation?.title ?? "Conversation"}
         </h2>
       </div>
 
-      <div style={{ flex: 1, overflow: "auto", padding: "16px" }}>
-        {visibleThread.map((threadNode) => {
-          const msg = threadNode.node.message;
-          if (msg == null) return null;
-          return (
-            <MessageBubble
-              key={threadNode.node.id}
-              message={msg}
-              node={threadNode.node}
-              conversationId={conversationId}
-            />
-          );
-        })}
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+          {visibleThread.map((threadNode) => {
+            const msg = threadNode.node.message;
+            if (msg == null) return null;
+            return (
+              <MessageBubble
+                key={threadNode.node.id}
+                message={msg}
+                node={threadNode.node}
+                conversationId={conversationId}
+              />
+            );
+          })}
+        </div>
       </div>
     </div>
   );
