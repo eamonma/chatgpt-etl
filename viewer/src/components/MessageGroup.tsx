@@ -58,9 +58,15 @@ export function MessageGroup({
     );
   }
 
-  // Assistant group: split into "process" (thinking/tools) and "output" (final response)
-  const processMessages: ThreadNode[] = [];
-  const outputMessages: ThreadNode[] = [];
+  // Render in order. Output text is always shown inline.
+  // Non-output messages (thoughts, code, tool, reasoning_recap) accumulate
+  // into collapsible process blocks. When we hit output, flush the process block.
+  type Segment =
+    | { type: "output"; tn: ThreadNode }
+    | { type: "process"; messages: ThreadNode[] };
+
+  const segments: Segment[] = [];
+  let currentProcess: ThreadNode[] = [];
 
   for (const tn of group.messages) {
     const msg = tn.node.message;
@@ -68,14 +74,22 @@ export function MessageGroup({
     const ct = msg.content.content_type;
 
     const isOutput =
-      (msg.author.role === "assistant" && ct === "text" && msg.recipient === "all") ||
-      (msg.author.role === "assistant" && ct === "multimodal_text" && msg.recipient === "all");
+      msg.author.role === "assistant" &&
+      (ct === "text" || ct === "multimodal_text") &&
+      (msg.recipient ?? "all") === "all";
 
     if (isOutput) {
-      outputMessages.push(tn);
+      if (currentProcess.length > 0) {
+        segments.push({ type: "process", messages: currentProcess });
+        currentProcess = [];
+      }
+      segments.push({ type: "output", tn });
     } else {
-      processMessages.push(tn);
+      currentProcess.push(tn);
     }
+  }
+  if (currentProcess.length > 0) {
+    segments.push({ type: "process", messages: currentProcess });
   }
 
   // Get model slug and timestamp from first assistant message
@@ -108,17 +122,14 @@ export function MessageGroup({
         </div>
 
         <div className="text-sm leading-relaxed space-y-2">
-          {/* Process block: thinking + tool calls, all in one collapsible */}
-          {processMessages.length > 0 && (
-            <ProcessBlock messages={processMessages} conversationId={conversationId} />
-          )}
-
-          {/* Final output */}
-          {outputMessages.map((tn) => {
-            const msg = tn.node.message!;
+          {segments.map((seg, i) => {
+            if (seg.type === "process") {
+              return <ProcessBlock key={i} messages={seg.messages} conversationId={conversationId} />;
+            }
+            const msg = seg.tn.node.message!;
             return (
               <ContentRenderer
-                key={tn.node.id}
+                key={seg.tn.node.id}
                 content={msg.content}
                 conversationId={conversationId}
                 contentReferences={msg.metadata?.content_references as unknown[] | undefined}
