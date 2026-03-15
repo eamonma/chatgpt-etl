@@ -1,21 +1,21 @@
 import { useEffect, useState } from "react";
 import { fetchConversation } from "../api/client";
 import type { ConversationFile } from "../types";
-import type { MappingNode, ThreadNode } from "../lib/thread";
-import { extractThread, filterVisibleMessages } from "../lib/thread";
+import type { MappingNode, ThreadNode, MessageGroup } from "../lib/thread";
+import { extractThread, filterVisibleMessages, groupMessages } from "../lib/thread";
 
 export function useConversation(id: string): {
   conversation: ConversationFile | null;
   thread: ThreadNode[];
   visibleThread: ThreadNode[];
+  messageGroups: MessageGroup[];
   loading: boolean;
   error: string | null;
 } {
-  const [conversation, setConversation] = useState<ConversationFile | null>(
-    null,
-  );
+  const [conversation, setConversation] = useState<ConversationFile | null>(null);
   const [thread, setThread] = useState<ThreadNode[]>([]);
   const [visibleThread, setVisibleThread] = useState<ThreadNode[]>([]);
+  const [messageGroups, setMessageGroups] = useState<MessageGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,25 +32,29 @@ export function useConversation(id: string): {
 
         const mapping = conv.mapping as Record<string, MappingNode>;
 
-        // Find the leaf node: a node with no children (or whose children are empty)
-        // We pick the deepest node by walking from any node that has no children.
-        let leafId: string | null = null;
-        for (const [nodeId, node] of Object.entries(mapping)) {
-          if (node.children.length === 0) {
-            leafId = nodeId;
-            break;
+        // Use current_node if available, otherwise find a leaf
+        let leafId: string | null = (conv as Record<string, unknown>).current_node as string | null;
+        if (!leafId || !mapping[leafId]) {
+          for (const [nodeId, node] of Object.entries(mapping)) {
+            if (node.children.length === 0) {
+              leafId = nodeId;
+              break;
+            }
           }
         }
 
         if (leafId == null) {
           setThread([]);
           setVisibleThread([]);
+          setMessageGroups([]);
           return;
         }
 
         const extracted = extractThread(mapping, leafId);
+        const visible = filterVisibleMessages(extracted);
         setThread(extracted);
-        setVisibleThread(filterVisibleMessages(extracted));
+        setVisibleThread(visible);
+        setMessageGroups(groupMessages(visible));
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -65,5 +69,5 @@ export function useConversation(id: string): {
     };
   }, [id]);
 
-  return { conversation, thread, visibleThread, loading, error };
+  return { conversation, thread, visibleThread, messageGroups, loading, error };
 }

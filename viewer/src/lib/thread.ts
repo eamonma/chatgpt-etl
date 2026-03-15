@@ -12,6 +12,7 @@ export interface Message {
   update_time: number | null;
   content: MessageContent;
   metadata: Record<string, unknown>;
+  recipient?: string;
   channel?: string;
 }
 
@@ -26,6 +27,12 @@ export interface ThreadNode {
   node: MappingNode;
   activeChildIndex: number;
   totalChildren: number;
+}
+
+/** A group of messages forming one visual "turn" in the conversation. */
+export interface MessageGroup {
+  role: "user" | "assistant";
+  messages: ThreadNode[];
 }
 
 /**
@@ -112,9 +119,45 @@ export function filterVisibleMessages(thread: ThreadNode[]): ThreadNode[] {
     if (msg == null) return false;
     if (msg.author.role === "system") return false;
     if (msg.metadata?.is_visually_hidden_from_conversation) return false;
-    if ((msg as Message & { channel?: string }).channel === "commentary") return false;
+    if (msg.channel === "commentary") return false;
     if (msg.content.content_type === "user_editable_context") return false;
     if (msg.content.content_type === "model_editable_context") return false;
     return true;
   });
+}
+
+/**
+ * Group visible messages into conversation turns.
+ * User messages are their own group. Everything else (assistant, tool,
+ * thoughts, code, etc.) between user messages gets grouped together.
+ */
+export function groupMessages(thread: ThreadNode[]): MessageGroup[] {
+  const groups: MessageGroup[] = [];
+  let currentGroup: MessageGroup | null = null;
+
+  for (const tn of thread) {
+    const msg = tn.node.message;
+    if (!msg) continue;
+
+    if (msg.author.role === "user") {
+      // Flush any pending assistant group
+      if (currentGroup) {
+        groups.push(currentGroup);
+        currentGroup = null;
+      }
+      groups.push({ role: "user", messages: [tn] });
+    } else {
+      // assistant, tool, or any non-user message — group together
+      if (!currentGroup) {
+        currentGroup = { role: "assistant", messages: [] };
+      }
+      currentGroup.messages.push(tn);
+    }
+  }
+
+  if (currentGroup) {
+    groups.push(currentGroup);
+  }
+
+  return groups;
 }

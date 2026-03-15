@@ -1,5 +1,5 @@
 import { useConversation } from "../hooks/useConversation";
-import { MessageBubble } from "./MessageBubble";
+import { MessageGroup } from "./MessageGroup";
 
 export function ConversationView({
   conversationId,
@@ -8,7 +8,7 @@ export function ConversationView({
   conversationId: string;
   onBack: () => void;
 }) {
-  const { conversation, visibleThread, loading, error } =
+  const { conversation, messageGroups, loading, error } =
     useConversation(conversationId);
 
   if (loading) {
@@ -54,18 +54,13 @@ export function ConversationView({
       {/* Messages */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
-          {visibleThread.map((threadNode) => {
-            const msg = threadNode.node.message;
-            if (msg == null) return null;
-            return (
-              <MessageBubble
-                key={threadNode.node.id}
-                message={msg}
-                node={threadNode.node}
-                conversationId={conversationId}
-              />
-            );
-          })}
+          {messageGroups.map((group, i) => (
+            <MessageGroup
+              key={i}
+              group={group}
+              conversationId={conversationId}
+            />
+          ))}
         </div>
       </div>
     </div>
