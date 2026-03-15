@@ -301,6 +301,33 @@ function ToolCallDisplay({ raw, language: _language }: { raw: string; language: 
     );
   }
 
+  // Open/read search results
+  if (parsed.open && Array.isArray(parsed.open)) {
+    const refs = parsed.open as { ref_id: string; lineno?: number }[];
+    const extra = Object.entries(parsed).filter(([k]) => k !== "open");
+    return (
+      <div className="rounded border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div className="px-3 py-1.5 bg-gray-100 dark:bg-gray-800 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          </svg>
+          Reading {refs.length} source{refs.length !== 1 ? "s" : ""}
+          {extra.map(([k, v]) => (
+            <span key={k} className="text-gray-400 dark:text-gray-500 ml-2">{k}: {String(v)}</span>
+          ))}
+        </div>
+        <div className="divide-y divide-gray-100 dark:divide-gray-800">
+          {refs.map((ref, i) => (
+            <div key={i} className="px-3 py-1.5 text-xs font-mono text-gray-600 dark:text-gray-400">
+              {ref.ref_id}
+              {ref.lineno != null && <span className="text-gray-400 ml-2">line {ref.lineno}</span>}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   // Python code execution
   if (parsed.jupyter_messages || parsed.code) {
     return (
