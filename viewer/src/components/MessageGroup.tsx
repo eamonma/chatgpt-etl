@@ -195,11 +195,8 @@ function ProcessBlock({
             // Tool calls (code sent to tool)
             if (role === "assistant" && ct === "code") {
               const toolContent = msg.content as unknown as Record<string, unknown>;
-              return (
-                <div key={tn.node.id} className="font-mono text-xs bg-gray-100 dark:bg-gray-800 rounded p-2 overflow-x-auto">
-                  {String(toolContent.text ?? "")}
-                </div>
-              );
+              const raw = String(toolContent.text ?? "");
+              return <ToolCallDisplay key={tn.node.id} raw={raw} language={String(toolContent.language ?? "")} />;
             }
 
             // Tool results
@@ -245,6 +242,106 @@ function ProcessBlock({
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+/** Renders a tool call (code sent to a tool), parsing JSON nicely when possible. */
+function ToolCallDisplay({ raw, language: _language }: { raw: string; language: string }) {
+  let parsed: Record<string, unknown> | null = null;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    // Not JSON — show as-is
+  }
+
+  if (!parsed) {
+    return (
+      <div className="font-mono text-xs bg-gray-100 dark:bg-gray-800 rounded p-2 overflow-x-auto whitespace-pre-wrap">
+        {raw}
+      </div>
+    );
+  }
+
+  // Search queries
+  if (parsed.search_query && Array.isArray(parsed.search_query)) {
+    const queries = parsed.search_query as { q: string; recency?: number }[];
+    return (
+      <div className="rounded border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div className="px-3 py-1.5 bg-gray-100 dark:bg-gray-800 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          Searched {queries.length} quer{queries.length === 1 ? "y" : "ies"}
+          {parsed.response_length && (
+            <span className="text-gray-400 dark:text-gray-500 ml-1">({String(parsed.response_length)})</span>
+          )}
+        </div>
+        <div className="divide-y divide-gray-100 dark:divide-gray-800">
+          {queries.map((sq, i) => (
+            <div key={i} className="px-3 py-2 text-xs flex items-baseline gap-2">
+              <span className="font-mono text-gray-700 dark:text-gray-300 break-all">{sq.q}</span>
+              {sq.recency != null && (
+                <span className="shrink-0 text-gray-400 dark:text-gray-500">
+                  {sq.recency >= 365 ? `${Math.round(sq.recency / 365)}y` :
+                   sq.recency >= 30 ? `${Math.round(sq.recency / 30)}mo` :
+                   `${sq.recency}d`}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Python code execution
+  if (parsed.jupyter_messages || parsed.code) {
+    return (
+      <pre className="text-xs bg-gray-100 dark:bg-gray-800 rounded p-2 overflow-x-auto whitespace-pre-wrap font-mono">
+        {String(parsed.code ?? raw)}
+      </pre>
+    );
+  }
+
+  // Browser commands
+  if (parsed.url || parsed.query) {
+    return (
+      <div className="rounded border border-gray-200 dark:border-gray-700 px-3 py-2 text-xs">
+        {parsed.query && (
+          <div className="flex items-center gap-1.5">
+            <svg className="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <span className="font-mono text-gray-700 dark:text-gray-300">{String(parsed.query)}</span>
+          </div>
+        )}
+        {parsed.url && (
+          <div className="flex items-center gap-1.5">
+            <svg className="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.172 13.828a4 4 0 015.656 0l4-4a4 4 0 00-5.656-5.656l-1.102 1.101" />
+            </svg>
+            <span className="font-mono text-gray-700 dark:text-gray-300 break-all">{String(parsed.url)}</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Generic JSON — format nicely with key-value display
+  return (
+    <div className="rounded border border-gray-200 dark:border-gray-700 overflow-hidden">
+      <div className="divide-y divide-gray-100 dark:divide-gray-800">
+        {Object.entries(parsed).map(([key, value]) => (
+          <div key={key} className="px-3 py-1.5 text-xs flex gap-2">
+            <span className="text-gray-400 dark:text-gray-500 shrink-0 font-mono">{key}</span>
+            <span className="font-mono text-gray-700 dark:text-gray-300 break-all">
+              {typeof value === "string" ? value : JSON.stringify(value)}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
