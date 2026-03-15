@@ -155,6 +155,77 @@ describe("extractAssetReferences", () => {
     const refs = extractAssetReferences("conv-xyz", mapping as any);
     expect(refs).toEqual([]);
   });
+
+  it("extracts {{file:file-XXX}} references from text parts", () => {
+    const mapping = {
+      root: {
+        id: "root",
+        message: null,
+        parent: null,
+        children: ["msg1"],
+      },
+      msg1: {
+        id: "msg1",
+        message: {
+          id: "msg1",
+          content: {
+            content_type: "text",
+            parts: ["Here's your report: {{file:file-YQSnBm8FiUxwSAvSPVmWKZ}}. Enjoy!"],
+          },
+          author: { role: "assistant" },
+        },
+        parent: "root",
+        children: [],
+      },
+    };
+    const refs = extractAssetReferences("conv-123", mapping as any);
+    expect(refs).toHaveLength(1);
+    expect(refs[0].fileId).toBe("file-YQSnBm8FiUxwSAvSPVmWKZ");
+    expect(refs[0].pointer).toBe("file-service://file-YQSnBm8FiUxwSAvSPVmWKZ");
+    expect(refs[0].conversationId).toBe("conv-123");
+  });
+
+  it("deduplicates file references", () => {
+    const mapping = {
+      root: {
+        id: "root",
+        message: null,
+        parent: null,
+        children: ["msg1", "msg2"],
+      },
+      msg1: {
+        id: "msg1",
+        message: {
+          id: "msg1",
+          content: {
+            content_type: "text",
+            parts: ["{{file:file-ABC123}} and {{file:file-ABC123}}"],
+          },
+          author: { role: "assistant" },
+        },
+        parent: "root",
+        children: [],
+      },
+      msg2: {
+        id: "msg2",
+        message: {
+          id: "msg2",
+          content: {
+            content_type: "multimodal_text",
+            parts: [
+              { asset_pointer: "sediment://file_00000000aabb", content_type: "image_asset_pointer" },
+              { asset_pointer: "sediment://file_00000000aabb", content_type: "image_asset_pointer" },
+            ],
+          },
+          author: { role: "tool" },
+        },
+        parent: "root",
+        children: [],
+      },
+    };
+    const refs = extractAssetReferences("conv-dedup", mapping as any);
+    expect(refs).toHaveLength(2); // file-ABC123 + file_00000000aabb, each once
+  });
 });
 
 describe("parseFileDownload", () => {

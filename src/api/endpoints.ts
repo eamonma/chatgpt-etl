@@ -59,6 +59,8 @@ export function extractAssetReferences(
 ): AssetReference[] {
   const refs: AssetReference[] = [];
   const sedimentPattern = /^sediment:\/\/(file_.+)$/;
+  const fileRefPattern = /\{\{file:(file-[a-zA-Z0-9]+)\}\}/g;
+  const seenFileIds = new Set<string>();
 
   for (const node of Object.values(mapping)) {
     if (!node.message) continue;
@@ -67,17 +69,35 @@ export function extractAssetReferences(
     if (!parts) continue;
 
     for (const part of parts) {
-      if (typeof part === "string") continue;
-      if (!part.asset_pointer) continue;
+      // Sediment asset pointers (images, PDFs, etc.)
+      if (typeof part !== "string" && part.asset_pointer) {
+        const match = sedimentPattern.exec(part.asset_pointer);
+        if (match && !seenFileIds.has(match[1])) {
+          seenFileIds.add(match[1]);
+          refs.push({
+            conversationId,
+            messageId: node.message.id,
+            fileId: match[1],
+            pointer: part.asset_pointer,
+          });
+        }
+        continue;
+      }
 
-      const match = sedimentPattern.exec(part.asset_pointer);
-      if (match) {
-        refs.push({
-          conversationId,
-          messageId: node.message.id,
-          fileId: match[1],
-          pointer: part.asset_pointer,
-        });
+      // {{file:file-XXX}} references in text (container-generated files)
+      if (typeof part === "string") {
+        for (const m of part.matchAll(fileRefPattern)) {
+          const fileId = m[1];
+          if (!seenFileIds.has(fileId)) {
+            seenFileIds.add(fileId);
+            refs.push({
+              conversationId,
+              messageId: node.message.id,
+              fileId,
+              pointer: `file-service://${fileId}`,
+            });
+          }
+        }
       }
     }
   }
