@@ -1,0 +1,18 @@
+{
+  "sidebar": {
+    "items": [
+      {
+        "id": "proj-001",
+        "title": "My Project",
+        "type": "project",
+        "updated_at": "2024-01-15T10:00:00Z"
+      },
+      {
+        "id": "proj-002",
+        "title": "Work Notes",
+        "type": "project",
+        "updated_at": "2024-01-14T08:00:00Z"
+      }
+    ]
+  }
+}

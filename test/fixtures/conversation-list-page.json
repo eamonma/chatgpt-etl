@@ -1,0 +1,26 @@
+{
+  "items": [
+    {
+      "id": "conv-abc-123",
+      "title": "My Chat about TypeScript",
+      "create_time": 1700000000,
+      "update_time": 1700001000
+    },
+    {
+      "id": "conv-def-456",
+      "title": "Recipe Ideas",
+      "create_time": 1700002000,
+      "update_time": 1700003000
+    },
+    {
+      "id": "conv-ghi-789",
+      "title": "Debugging Help",
+      "create_time": 1700004000,
+      "update_time": 1700005000
+    }
+  ],
+  "total": 1174,
+  "limit": 100,
+  "offset": 0,
+  "has_missing_conversations": false
+}

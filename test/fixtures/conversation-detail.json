@@ -1,0 +1,75 @@
+{
+  "id": "conv-abc-123",
+  "title": "My Chat about TypeScript",
+  "create_time": 1700000000,
+  "update_time": 1700001000,
+  "moderation_results": [],
+  "current_node": "msg-node-003",
+  "mapping": {
+    "msg-node-001": {
+      "id": "msg-node-001",
+      "message": null,
+      "parent": null,
+      "children": ["msg-node-002"]
+    },
+    "msg-node-002": {
+      "id": "msg-node-002",
+      "message": {
+        "id": "msg-node-002",
+        "author": { "role": "user", "metadata": {} },
+        "create_time": 1700000100,
+        "update_time": null,
+        "content": {
+          "content_type": "text",
+          "parts": ["What is TypeScript?"]
+        },
+        "metadata": {}
+      },
+      "parent": "msg-node-001",
+      "children": ["msg-node-003"]
+    },
+    "msg-node-003": {
+      "id": "msg-node-003",
+      "message": {
+        "id": "msg-node-003",
+        "author": { "role": "assistant", "metadata": {} },
+        "create_time": 1700000200,
+        "update_time": null,
+        "content": {
+          "content_type": "text",
+          "parts": ["TypeScript is a typed superset of JavaScript."]
+        },
+        "metadata": {}
+      },
+      "parent": "msg-node-002",
+      "children": []
+    },
+    "msg-node-004": {
+      "id": "msg-node-004",
+      "message": {
+        "id": "msg-node-004",
+        "author": { "role": "user", "metadata": {} },
+        "create_time": 1700000300,
+        "update_time": null,
+        "content": {
+          "content_type": "multimodal_text",
+          "parts": [
+            "Here is an image:",
+            {
+              "content_type": "image_asset_pointer",
+              "asset_pointer": "sediment://file_abc123"
+            },
+            "And another file:",
+            {
+              "content_type": "image_asset_pointer",
+              "asset_pointer": "sediment://file_def456"
+            }
+          ]
+        },
+        "metadata": {}
+      },
+      "parent": "msg-node-003",
+      "children": []
+    }
+  }
+}
